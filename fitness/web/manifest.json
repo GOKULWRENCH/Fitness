@@ -1,11 +1,11 @@
 {
-    "name": "fitness",
-    "short_name": "fitness",
+    "name": "LiftLedger",
+    "short_name": "LiftLedger",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F4F1E8",
+    "theme_color": "#123826",
+    "description": "A local-first personal fitness tracker for weight, nutrition, measurements, and workout logging.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
