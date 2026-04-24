@@ -10,5 +10,8 @@ fi
 
 flutter config --enable-web
 flutter --disable-analytics
+
+cd fitness
+
 flutter pub get
 flutter build web --release
