@@ -16,7 +16,10 @@ class DashboardMetrics {
     this.averageCalories,
     this.averageProtein,
     required this.totalWorkoutDays,
+    required this.totalExercises,
     required this.totalSets,
+    required this.totalWorkoutDurationMinutes,
+    required this.cardioCaloriesBurned,
     required this.workoutVolume,
   });
 
@@ -32,7 +35,10 @@ class DashboardMetrics {
   final double? averageCalories;
   final double? averageProtein;
   final int totalWorkoutDays;
+  final int totalExercises;
   final int totalSets;
+  final int totalWorkoutDurationMinutes;
+  final int cardioCaloriesBurned;
   final double workoutVolume;
 }
 
@@ -44,6 +50,23 @@ class WeeklyWorkoutBucket {
 
   final DateTime weekStart;
   final int workoutDays;
+}
+
+class WeeklyNutritionMetrics {
+  const WeeklyNutritionMetrics({this.averageCalories, this.averageProtein});
+
+  final double? averageCalories;
+  final double? averageProtein;
+}
+
+class WeeklyWorkoutSummary {
+  const WeeklyWorkoutSummary({
+    required this.workoutFrequency,
+    required this.muscleGroups,
+  });
+
+  final int workoutFrequency;
+  final List<String> muscleGroups;
 }
 
 double? calculateUsNavyBodyFat({
@@ -74,7 +97,10 @@ DashboardMetrics buildDashboardMetrics(List<FitnessEntry> entries) {
   if (entries.isEmpty) {
     return const DashboardMetrics(
       totalWorkoutDays: 0,
+      totalExercises: 0,
       totalSets: 0,
+      totalWorkoutDurationMinutes: 0,
+      cardioCaloriesBurned: 0,
       workoutVolume: 0,
     );
   }
@@ -127,14 +153,63 @@ DashboardMetrics buildDashboardMetrics(List<FitnessEntry> entries) {
     averageCalories: _average(calories),
     averageProtein: _average(proteins),
     totalWorkoutDays: sortedEntries.where((entry) => entry.hasWorkout).length,
+    totalExercises: sortedEntries.fold(
+      0,
+      (running, entry) => running + entry.totalExercises,
+    ),
     totalSets: sortedEntries.fold(
       0,
       (running, entry) => running + entry.totalSets,
+    ),
+    totalWorkoutDurationMinutes: sortedEntries.fold(
+      0,
+      (running, entry) => running + entry.totalWorkoutDurationMinutes,
+    ),
+    cardioCaloriesBurned: sortedEntries.fold(
+      0,
+      (running, entry) => running + entry.cardioCaloriesBurned,
     ),
     workoutVolume: sortedEntries.fold<double>(
       0,
       (running, entry) => running + entry.workoutVolume,
     ),
+  );
+}
+
+WeeklyNutritionMetrics buildWeeklyNutritionMetrics(
+  List<FitnessEntry> entries,
+  DateTime anchorDate,
+) {
+  final weekEntries = entriesForWeek(entries, anchorDate);
+  final calories = weekEntries
+      .map((entry) => entry.totalCalories?.toDouble())
+      .whereType<double>()
+      .toList(growable: false);
+  final proteins = weekEntries
+      .map((entry) => entry.totalProteinGrams)
+      .whereType<double>()
+      .toList(growable: false);
+
+  return WeeklyNutritionMetrics(
+    averageCalories: _average(calories),
+    averageProtein: _average(proteins),
+  );
+}
+
+WeeklyWorkoutSummary buildWeeklyWorkoutSummary(
+  List<FitnessEntry> entries,
+  DateTime anchorDate,
+) {
+  final weekEntries = entriesForWeek(entries, anchorDate);
+  final muscleGroups = <String>{};
+  for (final entry in weekEntries) {
+    muscleGroups.addAll(entry.muscleGroups);
+  }
+
+  final values = muscleGroups.toList(growable: false)..sort();
+  return WeeklyWorkoutSummary(
+    workoutFrequency: weekEntries.where((entry) => entry.hasWorkout).length,
+    muscleGroups: values,
   );
 }
 
@@ -167,9 +242,28 @@ List<WeeklyWorkoutBucket> buildWorkoutFrequency(List<FitnessEntry> entries) {
   return buckets;
 }
 
+List<FitnessEntry> entriesForWeek(
+  List<FitnessEntry> entries,
+  DateTime anchorDate,
+) {
+  final weekStart = startOfWeek(anchorDate);
+  final weekEnd = endOfWeek(anchorDate);
+
+  return entries
+      .where(
+        (entry) =>
+            !entry.date.isBefore(weekStart) && !entry.date.isAfter(weekEnd),
+      )
+      .toList(growable: false);
+}
+
 DateTime startOfWeek(DateTime date) {
   final normalized = FitnessEntry.normalizedDate(date);
   return normalized.subtract(Duration(days: normalized.weekday - 1));
+}
+
+DateTime endOfWeek(DateTime date) {
+  return startOfWeek(date).add(const Duration(days: 6));
 }
 
 double? _firstValue(

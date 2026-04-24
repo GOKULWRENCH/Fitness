@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'data/fitness_masters.dart';
 import 'models/fitness_entry.dart';
 import 'services/fitness_repository.dart';
 import 'services/web_file_service.dart';
@@ -481,6 +482,8 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _weightController = TextEditingController();
+  final TextEditingController _calorieGoalController = TextEditingController();
+  final TextEditingController _proteinGoalController = TextEditingController();
   final TextEditingController _durationController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
   final TextEditingController _waistController = TextEditingController();
@@ -497,7 +500,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _mealDrafts.add(_createMealDraft());
-    _exerciseDrafts.add(_ExerciseDraft());
+    _exerciseDrafts.add(_createExerciseDraft());
     _attachListeners();
     _resetForm(prefillHeight: true);
   }
@@ -505,11 +508,23 @@ class _HomePageState extends State<HomePage> {
   @override
   void didUpdateWidget(covariant HomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final latestEntry = widget.repository.latestEntry;
     if (_editingEntryId == null &&
         _heightController.text.trim().isEmpty &&
-        widget.repository.latestEntry?.heightCm != null) {
-      _heightController.text = widget.repository.latestEntry!.heightCm!
-          .toStringAsFixed(0);
+        latestEntry?.heightCm != null) {
+      _heightController.text = latestEntry!.heightCm!.toStringAsFixed(0);
+    }
+    if (_editingEntryId == null &&
+        _calorieGoalController.text.trim().isEmpty &&
+        latestEntry?.calorieGoal != null) {
+      _calorieGoalController.text = latestEntry!.calorieGoal!.toString();
+    }
+    if (_editingEntryId == null &&
+        _proteinGoalController.text.trim().isEmpty &&
+        latestEntry?.proteinGoalGrams != null) {
+      _proteinGoalController.text = _formatControllerValue(
+        latestEntry!.proteinGoalGrams,
+      );
     }
   }
 
@@ -517,6 +532,8 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _scrollController.dispose();
     _weightController.dispose();
+    _calorieGoalController.dispose();
+    _proteinGoalController.dispose();
     _durationController.dispose();
     _notesController.dispose();
     _waistController.dispose();
@@ -534,6 +551,8 @@ class _HomePageState extends State<HomePage> {
   void _attachListeners() {
     for (final controller in <TextEditingController>[
       _weightController,
+      _calorieGoalController,
+      _proteinGoalController,
       _durationController,
       _notesController,
       _waistController,
@@ -556,6 +575,10 @@ class _HomePageState extends State<HomePage> {
     _editingEntryId = null;
 
     _weightController.clear();
+    _calorieGoalController.text = latestEntry?.calorieGoal?.toString() ?? '';
+    _proteinGoalController.text = _formatControllerValue(
+      latestEntry?.proteinGoalGrams,
+    );
     _durationController.clear();
     _notesController.clear();
     _waistController.clear();
@@ -576,7 +599,7 @@ class _HomePageState extends State<HomePage> {
     }
     _exerciseDrafts
       ..clear()
-      ..add(_ExerciseDraft());
+      ..add(_createExerciseDraft());
 
     if (mounted) {
       setState(() {});
@@ -587,6 +610,10 @@ class _HomePageState extends State<HomePage> {
     _editingEntryId = entry.id;
     _selectedDate = entry.date;
     _weightController.text = _formatControllerValue(entry.weightKg);
+    _calorieGoalController.text = entry.calorieGoal?.toString() ?? '';
+    _proteinGoalController.text = _formatControllerValue(
+      entry.proteinGoalGrams,
+    );
     _durationController.text = entry.workoutDurationMinutes?.toString() ?? '';
     _notesController.text = entry.notes;
     _waistController.text = _formatControllerValue(entry.waistCm);
@@ -613,9 +640,9 @@ class _HomePageState extends State<HomePage> {
       ..clear()
       ..addAll(
         entry.exercises.isEmpty
-            ? <_ExerciseDraft>[_ExerciseDraft()]
+            ? <_ExerciseDraft>[_createExerciseDraft()]
             : entry.exercises
-                  .map((exercise) => _ExerciseDraft.fromExercise(exercise))
+                  .map((exercise) => _createExerciseDraft(exercise))
                   .toList(growable: false),
       );
 
@@ -645,59 +672,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _saveEntry() async {
-    if (!_hasMeaningfulData) {
+    final entry = _buildEntryFromDraft();
+    if (entry == null) {
       widget.onShowMessage(
         'Add at least one metric, meal, note, or workout before saving.',
       );
       return;
     }
-
-    final meals = _mealDrafts
-        .map((draft) => draft.toMeal())
-        .where((meal) => meal.isMeaningful)
-        .toList(growable: false);
-    final totalCalories = meals
-        .map((meal) => meal.calories)
-        .whereType<int>()
-        .fold<int>(0, (running, value) => running + value);
-    final totalProtein = meals
-        .map((meal) => meal.proteinGrams)
-        .whereType<double>()
-        .fold<double>(0, (running, value) => running + value);
-    final exercises = _exerciseDrafts
-        .map((draft) => draft.toExercise())
-        .where((exercise) => exercise.isMeaningful)
-        .toList(growable: false);
-    final waistCm = _parseDouble(_waistController);
-    final neckCm = _parseDouble(_neckController);
-    final heightCm = _parseDouble(_heightController);
-    final bodyFat = waistCm != null && neckCm != null && heightCm != null
-        ? calculateUsNavyBodyFat(
-            waistCm: waistCm,
-            neckCm: neckCm,
-            heightCm: heightCm,
-          )
-        : null;
-
-    final entry = FitnessEntry(
-      id: FitnessEntry.idForDate(_selectedDate),
-      date: _selectedDate,
-      weightKg: _parseDouble(_weightController),
-      calories: meals.any((meal) => meal.calories != null)
-          ? totalCalories
-          : null,
-      proteinGrams: meals.any((meal) => meal.proteinGrams != null)
-          ? double.parse(totalProtein.toStringAsFixed(1))
-          : null,
-      meals: meals,
-      exercises: exercises,
-      workoutDurationMinutes: _parseInt(_durationController),
-      notes: _notesController.text.trim(),
-      waistCm: waistCm,
-      neckCm: neckCm,
-      heightCm: heightCm,
-      bodyFatPercentage: bodyFat,
-    );
 
     await widget.repository.saveEntry(entry, previousId: _editingEntryId);
     if (!mounted) {
@@ -751,6 +732,8 @@ class _HomePageState extends State<HomePage> {
 
   bool get _hasMeaningfulData {
     return _parseDouble(_weightController) != null ||
+        _parseInt(_calorieGoalController) != null ||
+        _parseDouble(_proteinGoalController) != null ||
         _mealDrafts.any((draft) => draft.toMeal().isMeaningful) ||
         _parseInt(_durationController) != null ||
         _notesController.text.trim().isNotEmpty ||
@@ -760,13 +743,100 @@ class _HomePageState extends State<HomePage> {
         _exerciseDrafts.any((draft) => draft.toExercise().isMeaningful);
   }
 
+  FitnessEntry? _buildEntryFromDraft() {
+    if (!_hasMeaningfulData) {
+      return null;
+    }
+
+    final meals = _mealDrafts
+        .map((draft) => draft.toMeal())
+        .where((meal) => meal.isMeaningful)
+        .toList(growable: false);
+    final totalCalories = meals
+        .map((meal) => meal.calories)
+        .whereType<int>()
+        .fold<int>(0, (running, value) => running + value);
+    final totalProtein = meals
+        .map((meal) => meal.proteinGrams)
+        .whereType<double>()
+        .fold<double>(0, (running, value) => running + value);
+    final exercises = _exerciseDrafts
+        .map((draft) => draft.toExercise())
+        .where((exercise) => exercise.isMeaningful)
+        .toList(growable: false);
+    final waistCm = _parseDouble(_waistController);
+    final neckCm = _parseDouble(_neckController);
+    final heightCm = _parseDouble(_heightController);
+    final bodyFat = waistCm != null && neckCm != null && heightCm != null
+        ? calculateUsNavyBodyFat(
+            waistCm: waistCm,
+            neckCm: neckCm,
+            heightCm: heightCm,
+          )
+        : null;
+
+    return FitnessEntry(
+      id: FitnessEntry.idForDate(_selectedDate),
+      date: _selectedDate,
+      weightKg: _parseDouble(_weightController),
+      calories: meals.any((meal) => meal.calories != null)
+          ? totalCalories
+          : null,
+      proteinGrams: meals.any((meal) => meal.proteinGrams != null)
+          ? double.parse(totalProtein.toStringAsFixed(1))
+          : null,
+      calorieGoal: _parseInt(_calorieGoalController),
+      proteinGoalGrams: _parseDouble(_proteinGoalController),
+      meals: meals,
+      exercises: exercises,
+      workoutDurationMinutes: _parseInt(_durationController),
+      notes: _notesController.text.trim(),
+      waistCm: waistCm,
+      neckCm: neckCm,
+      heightCm: heightCm,
+      bodyFatPercentage: bodyFat,
+    );
+  }
+
+  List<FitnessEntry> _previewEntries(FitnessEntry? draftEntry) {
+    final entries = widget.repository.entries
+        .where((entry) => draftEntry == null || entry.id != draftEntry.id)
+        .toList(growable: true);
+    if (draftEntry != null) {
+      entries.add(draftEntry);
+    }
+    entries.sort((left, right) => left.date.compareTo(right.date));
+    return entries;
+  }
+
   _MealDraft _createMealDraft([MealEntry? meal]) {
     final draft = meal == null ? _MealDraft() : _MealDraft.fromMeal(meal);
     for (final controller in <TextEditingController>[
-      draft.nameController,
-      draft.foodsController,
-      draft.caloriesController,
-      draft.proteinController,
+      draft.quantityController,
+      draft.customItemNameController,
+      draft.customServingSizeController,
+      draft.customCaloriesController,
+      draft.customProteinController,
+      draft.customCarbsController,
+      draft.customFatController,
+    ]) {
+      controller.addListener(_triggerRebuild);
+    }
+    return draft;
+  }
+
+  _ExerciseDraft _createExerciseDraft([WorkoutExercise? exercise]) {
+    final draft = exercise == null
+        ? _ExerciseDraft()
+        : _ExerciseDraft.fromExercise(exercise);
+    for (final controller in <TextEditingController>[
+      draft.customExerciseNameController,
+      draft.setsController,
+      draft.repsController,
+      draft.weightController,
+      draft.durationController,
+      draft.caloriesBurnedController,
+      draft.notesController,
     ]) {
       controller.addListener(_triggerRebuild);
     }
@@ -792,7 +862,11 @@ class _HomePageState extends State<HomePage> {
     if (values.isEmpty) {
       return null;
     }
-    return values.fold<double>(0, (running, value) => running + value);
+    return double.parse(
+      values
+          .fold<double>(0, (running, value) => running + value)
+          .toStringAsFixed(1),
+    );
   }
 
   @override
@@ -800,9 +874,36 @@ class _HomePageState extends State<HomePage> {
     final theme = Theme.of(context);
     final latestEntry = widget.repository.latestEntry;
     final existingEntry = widget.repository.entryForDate(_selectedDate);
+    final draftEntry = _buildEntryFromDraft();
+    final previewEntries = _previewEntries(draftEntry);
+    final weeklyNutrition = buildWeeklyNutritionMetrics(
+      previewEntries,
+      _selectedDate,
+    );
+    final weeklyWorkout = buildWeeklyWorkoutSummary(
+      previewEntries,
+      _selectedDate,
+    );
     final bodyFat = _derivedBodyFat;
     final dailyMealCalories = _dailyMealCalories;
     final dailyMealProtein = _dailyMealProtein;
+    final calorieGoal = _parseInt(_calorieGoalController);
+    final proteinGoal = _parseDouble(_proteinGoalController);
+    final dailyCaloriesRemaining =
+        calorieGoal != null && dailyMealCalories != null
+        ? calorieGoal - dailyMealCalories
+        : null;
+    final dailyProteinRemaining =
+        proteinGoal != null && dailyMealProtein != null
+        ? double.parse((proteinGoal - dailyMealProtein).toStringAsFixed(1))
+        : null;
+    final totalExercises = draftEntry?.totalExercises ?? 0;
+    final totalSets = draftEntry?.totalSets ?? 0;
+    final totalWorkoutDuration = draftEntry?.totalWorkoutDurationMinutes ?? 0;
+    final cardioCaloriesBurned = draftEntry?.cardioCaloriesBurned ?? 0;
+    final muscleGroupsThisWeek = weeklyWorkout.muscleGroups.isEmpty
+        ? '--'
+        : weeklyWorkout.muscleGroups.join(', ');
     final recentEntries = widget.repository.entries.reversed.take(7).toList();
 
     return Material(
@@ -882,7 +983,7 @@ class _HomePageState extends State<HomePage> {
                     _SectionCard(
                       title: 'Daily snapshot',
                       subtitle:
-                          'One saved log per date. Saving the same day updates that day\'s record.',
+                          'One saved log per date. Meal totals and weekly nutrition averages update automatically from the selected week.',
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -927,6 +1028,22 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                           const SizedBox(height: 12),
+                          _TwoColumnFields(
+                            left: _NumberField(
+                              controller: _calorieGoalController,
+                              label: 'Calorie goal',
+                              icon: Icons.flag_outlined,
+                              allowDecimal: false,
+                            ),
+                            right: _NumberField(
+                              controller: _proteinGoalController,
+                              label: 'Protein goal (g)',
+                              icon: Icons.track_changes_outlined,
+                              helperText:
+                                  'Used to calculate remaining calories and protein.',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
                           Container(
                             width: double.infinity,
                             padding: const EdgeInsets.all(18),
@@ -939,7 +1056,7 @@ class _HomePageState extends State<HomePage> {
                               runSpacing: 12,
                               children: [
                                 _NutritionSummaryChip(
-                                  label: 'Meals today',
+                                  label: 'Meal items',
                                   value: _mealDrafts
                                       .where(
                                         (draft) => draft.toMeal().isMeaningful,
@@ -962,6 +1079,34 @@ class _HomePageState extends State<HomePage> {
                                       : '--',
                                   icon: Icons.egg_alt_outlined,
                                 ),
+                                _NutritionSummaryChip(
+                                  label: 'Calories remaining',
+                                  value: dailyCaloriesRemaining != null
+                                      ? '$dailyCaloriesRemaining kcal'
+                                      : '--',
+                                  icon: Icons.flag_circle_outlined,
+                                ),
+                                _NutritionSummaryChip(
+                                  label: 'Protein remaining',
+                                  value: dailyProteinRemaining != null
+                                      ? '${dailyProteinRemaining.toStringAsFixed(1)} g'
+                                      : '--',
+                                  icon: Icons.emoji_food_beverage_outlined,
+                                ),
+                                _NutritionSummaryChip(
+                                  label: 'Avg weekly calories',
+                                  value: weeklyNutrition.averageCalories != null
+                                      ? '${weeklyNutrition.averageCalories!.toStringAsFixed(0)} kcal'
+                                      : '--',
+                                  icon: Icons.calendar_view_week_outlined,
+                                ),
+                                _NutritionSummaryChip(
+                                  label: 'Avg weekly protein',
+                                  value: weeklyNutrition.averageProtein != null
+                                      ? '${weeklyNutrition.averageProtein!.toStringAsFixed(1)} g'
+                                      : '--',
+                                  icon: Icons.stacked_bar_chart_outlined,
+                                ),
                               ],
                             ),
                           ),
@@ -972,7 +1117,7 @@ class _HomePageState extends State<HomePage> {
                     _SectionCard(
                       title: 'Meals and notes',
                       subtitle:
-                          'Enter foods plus calories and protein for each meal. Daily totals below feed the dashboard averages and charts.',
+                          'Pick a meal category and item from the master list. Quantity updates calories, protein, carbs, and fat automatically.',
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -991,6 +1136,7 @@ class _HomePageState extends State<HomePage> {
                                 index: index,
                                 draft: _mealDrafts[index],
                                 canRemove: _mealDrafts.length > 1,
+                                onChanged: _triggerRebuild,
                                 onRemove: () {
                                   final removed = _mealDrafts.removeAt(index);
                                   removed.dispose();
@@ -1006,7 +1152,7 @@ class _HomePageState extends State<HomePage> {
                               });
                             },
                             icon: const Icon(Icons.add_circle_outline_rounded),
-                            label: const Text('Add meal'),
+                            label: const Text('Add meal item'),
                           ),
                           const SizedBox(height: 14),
                           TextField(
@@ -1026,14 +1172,16 @@ class _HomePageState extends State<HomePage> {
                     _SectionCard(
                       title: 'Workout',
                       subtitle:
-                          'Track one session with multiple exercises. Leave blank on rest days.',
+                          'Choose a workout category, then a matching exercise. Cardio rows can store calories burned and duration.',
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _NumberField(
                             controller: _durationController,
-                            label: 'Workout duration (min)',
+                            label: 'Overall workout duration (min)',
                             icon: Icons.timer_outlined,
+                            helperText:
+                                'Optional session total. Leave blank to rely on exercise durations.',
                             allowDecimal: false,
                           ),
                           const SizedBox(height: 16),
@@ -1052,6 +1200,7 @@ class _HomePageState extends State<HomePage> {
                                 index: index,
                                 draft: _exerciseDrafts[index],
                                 canRemove: _exerciseDrafts.length > 1,
+                                onChanged: _triggerRebuild,
                                 onRemove: () {
                                   final removed = _exerciseDrafts.removeAt(
                                     index,
@@ -1065,11 +1214,73 @@ class _HomePageState extends State<HomePage> {
                           OutlinedButton.icon(
                             onPressed: () {
                               setState(() {
-                                _exerciseDrafts.add(_ExerciseDraft());
+                                _exerciseDrafts.add(_createExerciseDraft());
                               });
                             },
                             icon: const Icon(Icons.add_circle_outline_rounded),
-                            label: const Text('Add exercise'),
+                            label: const Text('Add exercise row'),
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(22),
+                              color: const Color(0xFFF4F7F2),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Wrap(
+                                  spacing: 12,
+                                  runSpacing: 12,
+                                  children: [
+                                    _NutritionSummaryChip(
+                                      label: 'Total exercises',
+                                      value: totalExercises.toString(),
+                                      icon: Icons.sports_gymnastics_rounded,
+                                    ),
+                                    _NutritionSummaryChip(
+                                      label: 'Total sets',
+                                      value: totalSets.toString(),
+                                      icon: Icons.repeat_rounded,
+                                    ),
+                                    _NutritionSummaryChip(
+                                      label: 'Workout duration',
+                                      value: '$totalWorkoutDuration min',
+                                      icon: Icons.timer_outlined,
+                                    ),
+                                    _NutritionSummaryChip(
+                                      label: 'Cardio calories',
+                                      value: '$cardioCaloriesBurned kcal',
+                                      icon:
+                                          Icons.local_fire_department_outlined,
+                                    ),
+                                    _NutritionSummaryChip(
+                                      label: 'Weekly frequency',
+                                      value:
+                                          '${weeklyWorkout.workoutFrequency} days',
+                                      icon: Icons.calendar_month_outlined,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Muscle groups trained this week',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: const Color(0xFF617260),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  muscleGroupsThisWeek,
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -1513,8 +1724,20 @@ class DashboardPage extends StatelessWidget {
                     value: reportMetrics.totalWorkoutDays.toString(),
                   ),
                   _MetricCardData(
+                    title: 'Total exercises',
+                    value: reportMetrics.totalExercises.toString(),
+                  ),
+                  _MetricCardData(
                     title: 'Total sets',
                     value: reportMetrics.totalSets.toString(),
+                  ),
+                  _MetricCardData(
+                    title: 'Workout duration',
+                    value: '${reportMetrics.totalWorkoutDurationMinutes} min',
+                  ),
+                  _MetricCardData(
+                    title: 'Cardio calories',
+                    value: '${reportMetrics.cardioCaloriesBurned} kcal',
                   ),
                   _MetricCardData(
                     title: 'Workout volume',
@@ -1628,103 +1851,309 @@ class DashboardPage extends StatelessWidget {
   }
 }
 
+const String _customMealItemValue = '__custom_meal_item__';
+const String _customExerciseValue = '__custom_exercise__';
+
 class _MealDraft {
   _MealDraft({
-    String name = '',
-    String foods = '',
-    String calories = '',
-    String protein = '',
-  }) : nameController = TextEditingController(text: name),
-       foodsController = TextEditingController(text: foods),
-       caloriesController = TextEditingController(text: calories),
-       proteinController = TextEditingController(text: protein);
+    this.selectedCategory = '',
+    this.selectedItemName = '',
+    String quantity = '1',
+    String customItemName = '',
+    String customServingSize = '',
+    String customCalories = '',
+    String customProtein = '',
+    String customCarbs = '',
+    String customFat = '',
+  }) : quantityController = TextEditingController(
+         text: quantity.trim().isEmpty ? '1' : quantity,
+       ),
+       customItemNameController = TextEditingController(text: customItemName),
+       customServingSizeController = TextEditingController(
+         text: customServingSize,
+       ),
+       customCaloriesController = TextEditingController(text: customCalories),
+       customProteinController = TextEditingController(text: customProtein),
+       customCarbsController = TextEditingController(text: customCarbs),
+       customFatController = TextEditingController(text: customFat);
 
   factory _MealDraft.fromMeal(MealEntry meal) {
+    final masterItem = mealItemByName(meal.itemName);
+    final isCustomItem = meal.itemName.isNotEmpty && masterItem == null;
+
     return _MealDraft(
-      name: meal.name,
-      foods: meal.foods,
-      calories: meal.calories?.toString() ?? '',
-      protein: meal.proteinGrams == null
-          ? ''
-          : meal.proteinGrams == meal.proteinGrams!.roundToDouble()
-          ? meal.proteinGrams!.toStringAsFixed(0)
-          : meal.proteinGrams!.toStringAsFixed(1),
+      selectedCategory: meal.mealLabel.isNotEmpty
+          ? meal.mealLabel
+          : (masterItem?.category ?? ''),
+      selectedItemName: isCustomItem
+          ? _customMealItemValue
+          : meal.itemName.trim(),
+      quantity: _formatControllerNumber(meal.normalizedQuantity),
+      customItemName: isCustomItem ? meal.itemName : '',
+      customServingSize: isCustomItem ? meal.servingSize : '',
+      customCalories: isCustomItem
+          ? _formatControllerNumber(meal.effectiveCaloriesPerServing)
+          : '',
+      customProtein: isCustomItem
+          ? _formatControllerNumber(meal.effectiveProteinPerServing)
+          : '',
+      customCarbs: isCustomItem
+          ? _formatControllerNumber(meal.carbsPerServing)
+          : '',
+      customFat: isCustomItem
+          ? _formatControllerNumber(meal.fatPerServing)
+          : '',
     );
   }
 
-  final TextEditingController nameController;
-  final TextEditingController foodsController;
-  final TextEditingController caloriesController;
-  final TextEditingController proteinController;
+  String selectedCategory;
+  String selectedItemName;
+  final TextEditingController quantityController;
+  final TextEditingController customItemNameController;
+  final TextEditingController customServingSizeController;
+  final TextEditingController customCaloriesController;
+  final TextEditingController customProteinController;
+  final TextEditingController customCarbsController;
+  final TextEditingController customFatController;
+
+  bool get isCustom => selectedItemName == _customMealItemValue;
+
+  MealItemMaster? get selectedMasterItem =>
+      isCustom ? null : mealItemByName(selectedItemName);
+
+  String get resolvedItemName => isCustom
+      ? customItemNameController.text.trim()
+      : (selectedMasterItem?.name ?? selectedItemName.trim());
+
+  double get quantity {
+    final parsed = _parseDraftDouble(quantityController);
+    if (parsed == null || parsed <= 0) {
+      return 1;
+    }
+    return parsed;
+  }
+
+  String get servingSize => isCustom
+      ? customServingSizeController.text.trim()
+      : (selectedMasterItem?.servingSize ?? '');
+
+  double? get caloriesPerServing => isCustom
+      ? _parseDraftDouble(customCaloriesController)
+      : selectedMasterItem?.calories;
+
+  double? get proteinPerServing => isCustom
+      ? _parseDraftDouble(customProteinController)
+      : selectedMasterItem?.protein;
+
+  double? get carbsPerServing => isCustom
+      ? _parseDraftDouble(customCarbsController)
+      : selectedMasterItem?.carbs;
+
+  double? get fatPerServing => isCustom
+      ? _parseDraftDouble(customFatController)
+      : selectedMasterItem?.fat;
+
+  int? get totalCalories {
+    final perServing = caloriesPerServing;
+    if (perServing == null) {
+      return null;
+    }
+    return (perServing * quantity).round();
+  }
+
+  double? get totalProtein {
+    final perServing = proteinPerServing;
+    if (perServing == null) {
+      return null;
+    }
+    return double.parse((perServing * quantity).toStringAsFixed(1));
+  }
+
+  double? get totalCarbs {
+    final perServing = carbsPerServing;
+    if (perServing == null) {
+      return null;
+    }
+    return double.parse((perServing * quantity).toStringAsFixed(1));
+  }
+
+  double? get totalFat {
+    final perServing = fatPerServing;
+    if (perServing == null) {
+      return null;
+    }
+    return double.parse((perServing * quantity).toStringAsFixed(1));
+  }
+
+  void updateCategory(String category) {
+    selectedCategory = category;
+    if (isCustom) {
+      return;
+    }
+
+    final options = mealItemsForCategory(category);
+    final hasCurrentSelection = options.any(
+      (item) => item.name == selectedItemName,
+    );
+    if (!hasCurrentSelection) {
+      selectedItemName = '';
+    }
+  }
+
+  void updateItemSelection(String? value) {
+    selectedItemName = value?.trim() ?? '';
+    if (!isCustom) {
+      final masterItem = selectedMasterItem;
+      if (masterItem != null) {
+        selectedCategory = masterItem.category;
+      }
+    }
+  }
 
   MealEntry toMeal() {
     return MealEntry(
-      name: nameController.text.trim(),
-      foods: foodsController.text.trim(),
-      calories: int.tryParse(caloriesController.text.trim()),
-      proteinGrams: double.tryParse(
-        proteinController.text.replaceAll(',', '.').trim(),
-      ),
+      name: selectedCategory.trim(),
+      foods: resolvedItemName,
+      category: selectedCategory.trim(),
+      servingSize: servingSize,
+      quantity: quantity,
+      caloriesPerServing: caloriesPerServing,
+      proteinPerServing: proteinPerServing,
+      carbsPerServing: carbsPerServing,
+      fatPerServing: fatPerServing,
+      calories: totalCalories,
+      proteinGrams: totalProtein,
     );
   }
 
   void dispose() {
-    nameController.dispose();
-    foodsController.dispose();
-    caloriesController.dispose();
-    proteinController.dispose();
+    quantityController.dispose();
+    customItemNameController.dispose();
+    customServingSizeController.dispose();
+    customCaloriesController.dispose();
+    customProteinController.dispose();
+    customCarbsController.dispose();
+    customFatController.dispose();
   }
 }
 
 class _ExerciseDraft {
   _ExerciseDraft({
-    String workoutType = '',
-    String exerciseName = '',
+    this.selectedWorkoutType = '',
+    this.selectedExerciseName = '',
+    String customExerciseName = '',
     String sets = '',
     String reps = '',
     String weightKg = '',
-  }) : workoutTypeController = TextEditingController(text: workoutType),
-       exerciseNameController = TextEditingController(text: exerciseName),
+    String duration = '',
+    String caloriesBurned = '',
+    String notes = '',
+  }) : customExerciseNameController = TextEditingController(
+         text: customExerciseName,
+       ),
        setsController = TextEditingController(text: sets),
        repsController = TextEditingController(text: reps),
-       weightController = TextEditingController(text: weightKg);
+       weightController = TextEditingController(text: weightKg),
+       durationController = TextEditingController(text: duration),
+       caloriesBurnedController = TextEditingController(text: caloriesBurned),
+       notesController = TextEditingController(text: notes);
 
   factory _ExerciseDraft.fromExercise(WorkoutExercise exercise) {
+    final knownExercises = exercisesForWorkoutCategory(exercise.workoutType);
+    final isCustomExercise =
+        exercise.exerciseName.isNotEmpty &&
+        !knownExercises.contains(exercise.exerciseName);
+
     return _ExerciseDraft(
-      workoutType: exercise.workoutType,
-      exerciseName: exercise.exerciseName,
-      sets: exercise.sets.toString(),
-      reps: exercise.reps.toString(),
-      weightKg: exercise.weightKg == exercise.weightKg.roundToDouble()
-          ? exercise.weightKg.toStringAsFixed(0)
-          : exercise.weightKg.toStringAsFixed(1),
+      selectedWorkoutType: exercise.workoutType,
+      selectedExerciseName: isCustomExercise
+          ? _customExerciseValue
+          : exercise.exerciseName,
+      customExerciseName: isCustomExercise ? exercise.exerciseName : '',
+      sets: exercise.sets == 0 ? '' : exercise.sets.toString(),
+      reps: exercise.reps == 0 ? '' : exercise.reps.toString(),
+      weightKg: exercise.weightKg == 0
+          ? ''
+          : _formatControllerNumber(exercise.weightKg),
+      duration: exercise.durationMinutes == 0
+          ? ''
+          : exercise.durationMinutes.toString(),
+      caloriesBurned: exercise.caloriesBurned == 0
+          ? ''
+          : exercise.caloriesBurned.toString(),
+      notes: exercise.notes,
     );
   }
 
-  final TextEditingController workoutTypeController;
-  final TextEditingController exerciseNameController;
+  String selectedWorkoutType;
+  String selectedExerciseName;
+  final TextEditingController customExerciseNameController;
   final TextEditingController setsController;
   final TextEditingController repsController;
   final TextEditingController weightController;
+  final TextEditingController durationController;
+  final TextEditingController caloriesBurnedController;
+  final TextEditingController notesController;
+
+  bool get isCustom => selectedExerciseName == _customExerciseValue;
+
+  bool get isCardio => isCardioWorkoutCategory(selectedWorkoutType);
+
+  bool get isRestDay => isRestDayWorkoutCategory(selectedWorkoutType);
+
+  String get resolvedExerciseName => isCustom
+      ? customExerciseNameController.text.trim()
+      : selectedExerciseName.trim();
+
+  void updateCategory(String category) {
+    selectedWorkoutType = category;
+    if (isRestDayWorkoutCategory(category)) {
+      selectedExerciseName = '';
+      setsController.clear();
+      repsController.clear();
+      weightController.clear();
+      durationController.clear();
+      caloriesBurnedController.clear();
+      return;
+    }
+
+    if (isCustom) {
+      return;
+    }
+
+    final options = exercisesForWorkoutCategory(category);
+    if (!options.contains(selectedExerciseName)) {
+      selectedExerciseName = '';
+    }
+  }
+
+  void updateExerciseSelection(String? value) {
+    selectedExerciseName = value?.trim() ?? '';
+  }
 
   WorkoutExercise toExercise() {
     return WorkoutExercise(
-      workoutType: workoutTypeController.text.trim(),
-      exerciseName: exerciseNameController.text.trim(),
+      workoutType: selectedWorkoutType.trim(),
+      exerciseName: resolvedExerciseName,
       sets: int.tryParse(setsController.text.trim()) ?? 0,
       reps: int.tryParse(repsController.text.trim()) ?? 0,
       weightKg:
           double.tryParse(weightController.text.replaceAll(',', '.').trim()) ??
           0,
+      durationMinutes: int.tryParse(durationController.text.trim()) ?? 0,
+      caloriesBurned: int.tryParse(caloriesBurnedController.text.trim()) ?? 0,
+      notes: notesController.text.trim(),
     );
   }
 
   void dispose() {
-    workoutTypeController.dispose();
-    exerciseNameController.dispose();
+    customExerciseNameController.dispose();
     setsController.dispose();
     repsController.dispose();
     weightController.dispose();
+    durationController.dispose();
+    caloriesBurnedController.dispose();
+    notesController.dispose();
   }
 }
 
@@ -2143,6 +2572,71 @@ class _NumberField extends StatelessWidget {
   }
 }
 
+class _ReadOnlyField extends StatelessWidget {
+  const _ReadOnlyField({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.helperText,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final String? helperText;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        color: Colors.white.withValues(alpha: 0.88),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: const Color(0xFF1D7A57)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: const Color(0xFF617260),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (helperText != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    helperText!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFF617260),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _NutritionSummaryChip extends StatelessWidget {
   const _NutritionSummaryChip({
     required this.label,
@@ -2197,16 +2691,36 @@ class _MealEditorCard extends StatelessWidget {
     required this.index,
     required this.draft,
     required this.canRemove,
+    required this.onChanged,
     required this.onRemove,
   });
 
   final int index;
   final _MealDraft draft;
   final bool canRemove;
+  final VoidCallback onChanged;
   final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
+    final categoryOptions = <String>[...mealCategories];
+    if (draft.selectedCategory.isNotEmpty &&
+        !categoryOptions.contains(draft.selectedCategory)) {
+      categoryOptions.add(draft.selectedCategory);
+    }
+
+    final itemOptions = <String>[
+      ...mealItemsForCategory(draft.selectedCategory).map((item) => item.name),
+    ];
+    if (draft.selectedItemName.isNotEmpty &&
+        draft.selectedItemName != _customMealItemValue &&
+        !itemOptions.contains(draft.selectedItemName)) {
+      itemOptions.add(draft.selectedItemName);
+    }
+    if (!itemOptions.contains(_customMealItemValue)) {
+      itemOptions.add(_customMealItemValue);
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -2233,45 +2747,175 @@ class _MealEditorCard extends StatelessWidget {
             ],
           ),
           _TwoColumnFields(
-            left: TextField(
-              controller: draft.nameController,
+            left: DropdownButtonFormField<String>(
+              key: ValueKey('meal-category-$index-${draft.selectedCategory}'),
+              initialValue: draft.selectedCategory.isEmpty
+                  ? null
+                  : draft.selectedCategory,
               decoration: const InputDecoration(
-                labelText: 'Meal name',
-                hintText: 'Breakfast, lunch, dinner...',
+                labelText: 'Meal category',
                 prefixIcon: Icon(Icons.breakfast_dining_rounded),
               ),
+              items: categoryOptions
+                  .map(
+                    (category) => DropdownMenuItem<String>(
+                      value: category,
+                      child: Text(category),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: (value) {
+                draft.updateCategory(value ?? '');
+                onChanged();
+              },
             ),
-            right: TextField(
-              controller: draft.foodsController,
-              maxLines: 3,
-              textInputAction: TextInputAction.newline,
+            right: DropdownButtonFormField<String>(
+              key: ValueKey(
+                'meal-item-$index-${draft.selectedCategory}-${draft.selectedItemName}',
+              ),
+              initialValue: draft.selectedItemName.isEmpty
+                  ? null
+                  : draft.selectedItemName,
               decoration: const InputDecoration(
-                labelText: 'Food / items',
-                hintText: 'Oats, banana, whey protein',
+                labelText: 'Meal item',
                 prefixIcon: Icon(Icons.restaurant_menu_rounded),
               ),
+              items: itemOptions
+                  .map(
+                    (item) => DropdownMenuItem<String>(
+                      value: item,
+                      child: Text(
+                        item == _customMealItemValue ? 'Custom item' : item,
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: (value) {
+                draft.updateItemSelection(value);
+                onChanged();
+              },
             ),
           ),
           const SizedBox(height: 12),
-          _TwoColumnFields(
-            left: TextField(
-              controller: draft.caloriesController,
-              keyboardType: const TextInputType.numberWithOptions(),
-              decoration: const InputDecoration(
-                labelText: 'Calories',
-                prefixIcon: Icon(Icons.local_fire_department_outlined),
+          if (draft.isCustom) ...[
+            _TwoColumnFields(
+              left: TextField(
+                controller: draft.customItemNameController,
+                decoration: const InputDecoration(
+                  labelText: 'Custom item name',
+                  prefixIcon: Icon(Icons.edit_note_rounded),
+                ),
+              ),
+              right: TextField(
+                controller: draft.customServingSizeController,
+                decoration: const InputDecoration(
+                  labelText: 'Serving size',
+                  prefixIcon: Icon(Icons.scale_outlined),
+                ),
               ),
             ),
-            right: TextField(
-              controller: draft.proteinController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
+            const SizedBox(height: 12),
+            _TwoColumnFields(
+              left: TextField(
+                controller: draft.customCaloriesController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Calories / serving',
+                  prefixIcon: Icon(Icons.local_fire_department_outlined),
+                ),
               ),
-              decoration: const InputDecoration(
-                labelText: 'Protein (g)',
-                prefixIcon: Icon(Icons.egg_alt_outlined),
+              right: TextField(
+                controller: draft.customProteinController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Protein / serving (g)',
+                  prefixIcon: Icon(Icons.egg_alt_outlined),
+                ),
               ),
             ),
+            const SizedBox(height: 12),
+            _TwoColumnFields(
+              left: TextField(
+                controller: draft.customCarbsController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Carbs / serving (g)',
+                  prefixIcon: Icon(Icons.grain_outlined),
+                ),
+              ),
+              right: TextField(
+                controller: draft.customFatController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Fat / serving (g)',
+                  prefixIcon: Icon(Icons.opacity_outlined),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _NumberField(
+              controller: draft.quantityController,
+              label: 'Quantity',
+              icon: Icons.exposure_plus_1_rounded,
+            ),
+          ] else
+            _TwoColumnFields(
+              left: _ReadOnlyField(
+                label: 'Serving size',
+                value: draft.servingSize.isNotEmpty
+                    ? draft.servingSize
+                    : 'Select a meal item',
+                icon: Icons.scale_outlined,
+                helperText: 'Master values are auto-filled per serving.',
+              ),
+              right: _NumberField(
+                controller: draft.quantityController,
+                label: 'Quantity',
+                icon: Icons.exposure_plus_1_rounded,
+              ),
+            ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _NutritionSummaryChip(
+                label: 'Total calories',
+                value: draft.totalCalories != null
+                    ? '${draft.totalCalories} kcal'
+                    : '--',
+                icon: Icons.local_fire_department_outlined,
+              ),
+              _NutritionSummaryChip(
+                label: 'Total protein',
+                value: draft.totalProtein != null
+                    ? '${draft.totalProtein!.toStringAsFixed(1)} g'
+                    : '--',
+                icon: Icons.egg_alt_outlined,
+              ),
+              _NutritionSummaryChip(
+                label: 'Total carbs',
+                value: draft.totalCarbs != null
+                    ? '${draft.totalCarbs!.toStringAsFixed(1)} g'
+                    : '--',
+                icon: Icons.grain_outlined,
+              ),
+              _NutritionSummaryChip(
+                label: 'Total fat',
+                value: draft.totalFat != null
+                    ? '${draft.totalFat!.toStringAsFixed(1)} g'
+                    : '--',
+                icon: Icons.opacity_outlined,
+              ),
+            ],
           ),
         ],
       ),
@@ -2284,16 +2928,37 @@ class _ExerciseEditorCard extends StatelessWidget {
     required this.index,
     required this.draft,
     required this.canRemove,
+    required this.onChanged,
     required this.onRemove,
   });
 
   final int index;
   final _ExerciseDraft draft;
   final bool canRemove;
+  final VoidCallback onChanged;
   final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
+    final categoryOptions = <String>[...workoutCategories];
+    if (draft.selectedWorkoutType.isNotEmpty &&
+        !categoryOptions.contains(draft.selectedWorkoutType)) {
+      categoryOptions.add(draft.selectedWorkoutType);
+    }
+
+    final exerciseOptions = <String>[
+      ...exercisesForWorkoutCategory(draft.selectedWorkoutType),
+    ];
+    if (!draft.isRestDay &&
+        draft.selectedExerciseName.isNotEmpty &&
+        draft.selectedExerciseName != _customExerciseValue &&
+        !exerciseOptions.contains(draft.selectedExerciseName)) {
+      exerciseOptions.add(draft.selectedExerciseName);
+    }
+    if (!draft.isRestDay && !exerciseOptions.contains(_customExerciseValue)) {
+      exerciseOptions.add(_customExerciseValue);
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -2319,59 +2984,152 @@ class _ExerciseEditorCard extends StatelessWidget {
             ],
           ),
           _TwoColumnFields(
-            left: TextField(
-              controller: draft.workoutTypeController,
+            left: DropdownButtonFormField<String>(
+              key: ValueKey(
+                'exercise-category-$index-${draft.selectedWorkoutType}',
+              ),
+              initialValue: draft.selectedWorkoutType.isEmpty
+                  ? null
+                  : draft.selectedWorkoutType,
               decoration: const InputDecoration(
-                labelText: 'Workout type',
+                labelText: 'Workout category',
                 prefixIcon: Icon(Icons.fitness_center_rounded),
               ),
+              items: categoryOptions
+                  .map(
+                    (category) => DropdownMenuItem<String>(
+                      value: category,
+                      child: Text(category),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: (value) {
+                draft.updateCategory(value ?? '');
+                onChanged();
+              },
             ),
-            right: TextField(
-              controller: draft.exerciseNameController,
-              decoration: const InputDecoration(
-                labelText: 'Exercise name',
-                prefixIcon: Icon(Icons.sports_gymnastics_rounded),
-              ),
-            ),
+            right: draft.isRestDay
+                ? const _ReadOnlyField(
+                    label: 'Exercise',
+                    value: 'Rest / recovery day',
+                    icon: Icons.hotel_outlined,
+                    helperText: 'Use notes below for recovery details.',
+                  )
+                : DropdownButtonFormField<String>(
+                    key: ValueKey(
+                      'exercise-item-$index-${draft.selectedWorkoutType}-${draft.selectedExerciseName}',
+                    ),
+                    initialValue: draft.selectedExerciseName.isEmpty
+                        ? null
+                        : draft.selectedExerciseName,
+                    decoration: const InputDecoration(
+                      labelText: 'Exercise',
+                      prefixIcon: Icon(Icons.sports_gymnastics_rounded),
+                    ),
+                    items: exerciseOptions
+                        .map(
+                          (exercise) => DropdownMenuItem<String>(
+                            value: exercise,
+                            child: Text(
+                              exercise == _customExerciseValue
+                                  ? 'Custom exercise'
+                                  : exercise,
+                            ),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (value) {
+                      draft.updateExerciseSelection(value);
+                      onChanged();
+                    },
+                  ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: draft.setsController,
-                  keyboardType: const TextInputType.numberWithOptions(),
-                  decoration: const InputDecoration(
-                    labelText: 'Sets',
-                    prefixIcon: Icon(Icons.repeat_rounded),
+          if (!draft.isRestDay && draft.isCustom) ...[
+            TextField(
+              controller: draft.customExerciseNameController,
+              decoration: const InputDecoration(
+                labelText: 'Custom exercise name',
+                prefixIcon: Icon(Icons.edit_note_rounded),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (!draft.isRestDay)
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: draft.setsController,
+                    keyboardType: const TextInputType.numberWithOptions(),
+                    decoration: const InputDecoration(
+                      labelText: 'Sets',
+                      prefixIcon: Icon(Icons.repeat_rounded),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: draft.repsController,
-                  keyboardType: const TextInputType.numberWithOptions(),
-                  decoration: const InputDecoration(
-                    labelText: 'Reps',
-                    prefixIcon: Icon(Icons.countertops_rounded),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: draft.repsController,
+                    keyboardType: const TextInputType.numberWithOptions(),
+                    decoration: const InputDecoration(
+                      labelText: 'Reps',
+                      prefixIcon: Icon(Icons.countertops_rounded),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: draft.weightController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Weight (kg)',
-                    prefixIcon: Icon(Icons.monitor_weight_outlined),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: draft.weightController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Weight (kg)',
+                      prefixIcon: Icon(Icons.monitor_weight_outlined),
+                    ),
                   ),
                 ),
+              ],
+            ),
+          if (!draft.isRestDay) ...[
+            const SizedBox(height: 12),
+            _TwoColumnFields(
+              left: TextField(
+                controller: draft.durationController,
+                keyboardType: const TextInputType.numberWithOptions(),
+                decoration: const InputDecoration(
+                  labelText: 'Duration (min)',
+                  prefixIcon: Icon(Icons.timer_outlined),
+                ),
               ),
-            ],
+              right: TextField(
+                controller: draft.caloriesBurnedController,
+                keyboardType: const TextInputType.numberWithOptions(),
+                decoration: InputDecoration(
+                  labelText: 'Calories burned',
+                  helperText: draft.isCardio
+                      ? 'Best used for cardio sessions.'
+                      : 'Optional. Mostly useful for cardio.',
+                  prefixIcon: const Icon(Icons.local_fire_department_outlined),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          TextField(
+            controller: draft.notesController,
+            maxLines: 3,
+            keyboardType: TextInputType.multiline,
+            decoration: InputDecoration(
+              labelText: 'Notes',
+              helperText: draft.isRestDay
+                  ? 'Mobility, walking, soreness, or recovery notes.'
+                  : 'Tempo, effort, machine used, pace, or anything worth remembering.',
+              prefixIcon: const Icon(Icons.sticky_note_2_outlined),
+            ),
           ),
         ],
       ),
@@ -3035,4 +3793,23 @@ String _presetLabel(ReportPreset preset) {
     ReportPreset.halfYear => 'Last 6 months',
     ReportPreset.custom => 'Custom range',
   };
+}
+
+String _formatControllerNumber(num? value) {
+  if (value == null) {
+    return '';
+  }
+
+  final asDouble = value.toDouble();
+  return asDouble == asDouble.roundToDouble()
+      ? asDouble.toStringAsFixed(0)
+      : asDouble.toStringAsFixed(1);
+}
+
+double? _parseDraftDouble(TextEditingController controller) {
+  final sanitized = controller.text.replaceAll(',', '.').trim();
+  if (sanitized.isEmpty) {
+    return null;
+  }
+  return double.tryParse(sanitized);
 }
