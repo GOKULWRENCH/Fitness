@@ -387,31 +387,39 @@ class _FitnessAppShellState extends State<FitnessAppShell> {
               ),
               Positioned.fill(
                 child: useRail
-                    ? SafeArea(
-                        child: Row(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(18, 18, 6, 18),
-                              child: _RailNavigation(
-                                selectedTab: _selectedTab,
-                                items: navigationLabels,
-                                onSelected: (index) {
-                                  setState(() {
-                                    _selectedTab = AppTab.values[index];
-                                  });
-                                },
-                              ),
-                            ),
-                            Expanded(
-                              child: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 280),
-                                child: KeyedSubtree(
-                                  key: ValueKey(_selectedTab),
-                                  child: pages[_selectedTab.index],
+                    ? Scaffold(
+                        backgroundColor: Colors.transparent,
+                        body: SafeArea(
+                          child: Row(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  18,
+                                  18,
+                                  6,
+                                  18,
+                                ),
+                                child: _RailNavigation(
+                                  selectedTab: _selectedTab,
+                                  items: navigationLabels,
+                                  onSelected: (index) {
+                                    setState(() {
+                                      _selectedTab = AppTab.values[index];
+                                    });
+                                  },
                                 ),
                               ),
-                            ),
-                          ],
+                              Expanded(
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 280),
+                                  child: KeyedSubtree(
+                                    key: ValueKey(_selectedTab),
+                                    child: pages[_selectedTab.index],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       )
                     : Scaffold(
@@ -741,409 +749,416 @@ class _HomePageState extends State<HomePage> {
     final bodyFat = _derivedBodyFat;
     final recentEntries = widget.repository.entries.reversed.take(7).toList();
 
-    return SingleChildScrollView(
-      controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _PageHeader(
-            title: 'LiftLedger',
-            subtitle:
-                'Personal, local-only fitness tracking built for offline use on your iPhone home screen.',
-            badge: 'No login',
-            actionButton: PopupMenuButton<HeaderAction>(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+    return Material(
+      color: Colors.transparent,
+      child: SingleChildScrollView(
+        controller: _scrollController,
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _PageHeader(
+              title: 'LiftLedger',
+              subtitle:
+                  'Personal, local-only fitness tracking built for offline use on your iPhone home screen.',
+              badge: 'No login',
+              actionButton: PopupMenuButton<HeaderAction>(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                onSelected: widget.onHeaderActionSelected,
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: HeaderAction.exportCsv,
+                    child: Text('Export CSV'),
+                  ),
+                  PopupMenuItem(
+                    value: HeaderAction.backupJson,
+                    child: Text('Backup JSON'),
+                  ),
+                  PopupMenuItem(
+                    value: HeaderAction.restoreJson,
+                    child: Text('Restore JSON'),
+                  ),
+                ],
+                child: const _HeaderMenuButton(label: 'Data tools'),
               ),
-              onSelected: widget.onHeaderActionSelected,
-              itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: HeaderAction.exportCsv,
-                  child: Text('Export CSV'),
+            ),
+            const SizedBox(height: 18),
+            _HeroCard(
+              title: _editingEntryId == null
+                  ? 'Today\'s entry'
+                  : 'Editing saved entry',
+              eyebrow: _editingEntryId == null
+                  ? 'Home / Data entry'
+                  : 'Editing mode',
+              description: latestEntry == null
+                  ? 'Start with your current weight, calories, protein, and training details. Everything stays on-device in browser storage.'
+                  : 'Latest log: ${DateFormat('MMM d, yyyy').format(latestEntry.date)}. Body fat uses the US Navy male formula from waist, neck, and height.',
+              metrics: [
+                _HeroMetric(
+                  label: 'Latest weight',
+                  value: latestEntry?.weightKg != null
+                      ? '${latestEntry!.weightKg!.toStringAsFixed(1)} kg'
+                      : '--',
                 ),
-                PopupMenuItem(
-                  value: HeaderAction.backupJson,
-                  child: Text('Backup JSON'),
+                _HeroMetric(
+                  label: 'Current body fat',
+                  value: latestEntry?.bodyFatPercentage != null
+                      ? '${latestEntry!.bodyFatPercentage!.toStringAsFixed(1)}%'
+                      : '--',
                 ),
-                PopupMenuItem(
-                  value: HeaderAction.restoreJson,
-                  child: Text('Restore JSON'),
+                _HeroMetric(
+                  label: 'Workout days',
+                  value: widget.repository.entries
+                      .where((entry) => entry.hasWorkout)
+                      .length
+                      .toString(),
                 ),
               ],
-              child: const _HeaderMenuButton(label: 'Data tools'),
             ),
-          ),
-          const SizedBox(height: 18),
-          _HeroCard(
-            title: _editingEntryId == null
-                ? 'Today\'s entry'
-                : 'Editing saved entry',
-            eyebrow: _editingEntryId == null
-                ? 'Home / Data entry'
-                : 'Editing mode',
-            description: latestEntry == null
-                ? 'Start with your current weight, calories, protein, and training details. Everything stays on-device in browser storage.'
-                : 'Latest log: ${DateFormat('MMM d, yyyy').format(latestEntry.date)}. Body fat uses the US Navy male formula from waist, neck, and height.',
-            metrics: [
-              _HeroMetric(
-                label: 'Latest weight',
-                value: latestEntry?.weightKg != null
-                    ? '${latestEntry!.weightKg!.toStringAsFixed(1)} kg'
-                    : '--',
-              ),
-              _HeroMetric(
-                label: 'Current body fat',
-                value: latestEntry?.bodyFatPercentage != null
-                    ? '${latestEntry!.bodyFatPercentage!.toStringAsFixed(1)}%'
-                    : '--',
-              ),
-              _HeroMetric(
-                label: 'Workout days',
-                value: widget.repository.entries
-                    .where((entry) => entry.hasWorkout)
-                    .length
-                    .toString(),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final wideLayout = constraints.maxWidth >= 1080;
-              final mainContent = Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _SectionCard(
-                    title: 'Daily snapshot',
-                    subtitle:
-                        'One saved log per date. Saving the same day updates that day\'s record.',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _DateSelector(
-                          date: _selectedDate,
-                          onTap: _pickEntryDate,
-                        ),
-                        if (existingEntry != null &&
-                            _editingEntryId != existingEntry.id)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 10),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    'A saved entry already exists for this date.',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: const Color(0xFF4B5B4A),
+            const SizedBox(height: 20),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final wideLayout = constraints.maxWidth >= 1080;
+                final mainContent = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SectionCard(
+                      title: 'Daily snapshot',
+                      subtitle:
+                          'One saved log per date. Saving the same day updates that day\'s record.',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _DateSelector(
+                            date: _selectedDate,
+                            onTap: _pickEntryDate,
+                          ),
+                          if (existingEntry != null &&
+                              _editingEntryId != existingEntry.id)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'A saved entry already exists for this date.',
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            color: const Color(0xFF4B5B4A),
+                                          ),
                                     ),
                                   ),
+                                  TextButton(
+                                    onPressed: () => _loadEntry(existingEntry),
+                                    child: const Text('Load it'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          const SizedBox(height: 14),
+                          _TwoColumnFields(
+                            left: _NumberField(
+                              controller: _weightController,
+                              label: 'Weight (kg)',
+                              icon: Icons.monitor_weight_outlined,
+                            ),
+                            right: _NumberField(
+                              controller: _caloriesController,
+                              label: 'Calories',
+                              icon: Icons.local_fire_department_outlined,
+                              allowDecimal: false,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _TwoColumnFields(
+                            left: _NumberField(
+                              controller: _proteinController,
+                              label: 'Protein (g)',
+                              icon: Icons.egg_alt_outlined,
+                            ),
+                            right: _NumberField(
+                              controller: _heightController,
+                              label: 'Height (cm)',
+                              icon: Icons.height_rounded,
+                              helperText: 'Used for body fat formula.',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _SectionCard(
+                      title: 'Meals and notes',
+                      subtitle:
+                          'Use one line per meal so it stays easy to scan in backups and exports.',
+                      child: Column(
+                        children: [
+                          TextField(
+                            controller: _mealsController,
+                            maxLines: 5,
+                            textInputAction: TextInputAction.newline,
+                            decoration: const InputDecoration(
+                              labelText: 'Meals of the day',
+                              hintText:
+                                  'Breakfast - oats and fruit\nLunch - chicken rice bowl\nDinner - salmon and potatoes',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _notesController,
+                            maxLines: 4,
+                            textInputAction: TextInputAction.newline,
+                            decoration: const InputDecoration(
+                              labelText: 'Notes',
+                              hintText:
+                                  'Recovery, stress, sleep quality, hunger, steps, or anything else worth remembering.',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _SectionCard(
+                      title: 'Workout',
+                      subtitle:
+                          'Track one session with multiple exercises. Leave blank on rest days.',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _NumberField(
+                            controller: _durationController,
+                            label: 'Workout duration (min)',
+                            icon: Icons.timer_outlined,
+                            allowDecimal: false,
+                          ),
+                          const SizedBox(height: 16),
+                          for (
+                            var index = 0;
+                            index < _exerciseDrafts.length;
+                            index++
+                          )
+                            Padding(
+                              padding: EdgeInsets.only(
+                                bottom: index == _exerciseDrafts.length - 1
+                                    ? 0
+                                    : 12,
+                              ),
+                              child: _ExerciseEditorCard(
+                                index: index,
+                                draft: _exerciseDrafts[index],
+                                canRemove: _exerciseDrafts.length > 1,
+                                onRemove: () {
+                                  final removed = _exerciseDrafts.removeAt(
+                                    index,
+                                  );
+                                  removed.dispose();
+                                  setState(() {});
+                                },
+                              ),
+                            ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _exerciseDrafts.add(_ExerciseDraft());
+                              });
+                            },
+                            icon: const Icon(Icons.add_circle_outline_rounded),
+                            label: const Text('Add exercise'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _SectionCard(
+                      title: 'Measurements',
+                      subtitle:
+                          'Waist and neck are typically weekly. Body fat is calculated automatically from those plus height.',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _TwoColumnFields(
+                            left: _NumberField(
+                              controller: _waistController,
+                              label: 'Waist (cm)',
+                              icon: Icons.straighten_rounded,
+                            ),
+                            right: _NumberField(
+                              controller: _neckController,
+                              label: 'Neck (cm)',
+                              icon: Icons.accessibility_new_rounded,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(22),
+                              color: const Color(0xFF123826),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Derived body fat %',
+                                  style: TextStyle(
+                                    color: Color(0xFFB9DCC7),
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
-                                TextButton(
-                                  onPressed: () => _loadEntry(existingEntry),
-                                  child: const Text('Load it'),
+                                const SizedBox(height: 6),
+                                Text(
+                                  bodyFat == null
+                                      ? '--'
+                                      : '${bodyFat.toStringAsFixed(1)}%',
+                                  style: theme.textTheme.headlineMedium
+                                      ?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'US Navy male formula: waist, neck, and height.',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: const Color(0xFFE6F1EA),
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                        const SizedBox(height: 14),
-                        _TwoColumnFields(
-                          left: _NumberField(
-                            controller: _weightController,
-                            label: 'Weight (kg)',
-                            icon: Icons.monitor_weight_outlined,
-                          ),
-                          right: _NumberField(
-                            controller: _caloriesController,
-                            label: 'Calories',
-                            icon: Icons.local_fire_department_outlined,
-                            allowDecimal: false,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _TwoColumnFields(
-                          left: _NumberField(
-                            controller: _proteinController,
-                            label: 'Protein (g)',
-                            icon: Icons.egg_alt_outlined,
-                          ),
-                          right: _NumberField(
-                            controller: _heightController,
-                            label: 'Height (cm)',
-                            icon: Icons.height_rounded,
-                            helperText: 'Used for body fat formula.',
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  _SectionCard(
-                    title: 'Meals and notes',
-                    subtitle:
-                        'Use one line per meal so it stays easy to scan in backups and exports.',
-                    child: Column(
+                    const SizedBox(height: 18),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
                       children: [
-                        TextField(
-                          controller: _mealsController,
-                          maxLines: 5,
-                          textInputAction: TextInputAction.newline,
-                          decoration: const InputDecoration(
-                            labelText: 'Meals of the day',
-                            hintText:
-                                'Breakfast - oats and fruit\nLunch - chicken rice bowl\nDinner - salmon and potatoes',
+                        FilledButton.icon(
+                          onPressed: _saveEntry,
+                          icon: const Icon(Icons.save_rounded),
+                          label: Text(
+                            _editingEntryId == null
+                                ? 'Save entry'
+                                : 'Update entry',
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _notesController,
-                          maxLines: 4,
-                          textInputAction: TextInputAction.newline,
-                          decoration: const InputDecoration(
-                            labelText: 'Notes',
-                            hintText:
-                                'Recovery, stress, sleep quality, hunger, steps, or anything else worth remembering.',
-                          ),
+                        FilledButton.tonalIcon(
+                          onPressed: () => _resetForm(prefillHeight: true),
+                          icon: const Icon(Icons.add_task_rounded),
+                          label: const Text('New blank entry'),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _SectionCard(
-                    title: 'Workout',
-                    subtitle:
-                        'Track one session with multiple exercises. Leave blank on rest days.',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _NumberField(
-                          controller: _durationController,
-                          label: 'Workout duration (min)',
-                          icon: Icons.timer_outlined,
-                          allowDecimal: false,
-                        ),
-                        const SizedBox(height: 16),
-                        for (
-                          var index = 0;
-                          index < _exerciseDrafts.length;
-                          index++
-                        )
-                          Padding(
-                            padding: EdgeInsets.only(
-                              bottom: index == _exerciseDrafts.length - 1
-                                  ? 0
-                                  : 12,
-                            ),
-                            child: _ExerciseEditorCard(
-                              index: index,
-                              draft: _exerciseDrafts[index],
-                              canRemove: _exerciseDrafts.length > 1,
-                              onRemove: () {
-                                final removed = _exerciseDrafts.removeAt(index);
-                                removed.dispose();
-                                setState(() {});
-                              },
-                            ),
-                          ),
-                        const SizedBox(height: 12),
                         OutlinedButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              _exerciseDrafts.add(_ExerciseDraft());
-                            });
-                          },
-                          icon: const Icon(Icons.add_circle_outline_rounded),
-                          label: const Text('Add exercise'),
+                          onPressed: widget.onOpenDashboard,
+                          icon: const Icon(Icons.insights_rounded),
+                          label: const Text('Open dashboard'),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  _SectionCard(
-                    title: 'Measurements',
-                    subtitle:
-                        'Waist and neck are typically weekly. Body fat is calculated automatically from those plus height.',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _TwoColumnFields(
-                          left: _NumberField(
-                            controller: _waistController,
-                            label: 'Waist (cm)',
-                            icon: Icons.straighten_rounded,
-                          ),
-                          right: _NumberField(
-                            controller: _neckController,
-                            label: 'Neck (cm)',
-                            icon: Icons.accessibility_new_rounded,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(18),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(22),
-                            color: const Color(0xFF123826),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Derived body fat %',
-                                style: TextStyle(
-                                  color: Color(0xFFB9DCC7),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                bodyFat == null
-                                    ? '--'
-                                    : '${bodyFat.toStringAsFixed(1)}%',
-                                style: theme.textTheme.headlineMedium?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'US Navy male formula: waist, neck, and height.',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: const Color(0xFFE6F1EA),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      FilledButton.icon(
-                        onPressed: _saveEntry,
-                        icon: const Icon(Icons.save_rounded),
-                        label: Text(
-                          _editingEntryId == null
-                              ? 'Save entry'
-                              : 'Update entry',
-                        ),
-                      ),
-                      FilledButton.tonalIcon(
-                        onPressed: () => _resetForm(prefillHeight: true),
-                        icon: const Icon(Icons.add_task_rounded),
-                        label: const Text('New blank entry'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: widget.onOpenDashboard,
-                        icon: const Icon(Icons.insights_rounded),
-                        label: const Text('Open dashboard'),
-                      ),
-                    ],
-                  ),
-                ],
-              );
-
-              final sideContent = Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _SectionCard(
-                    title: 'Data tools',
-                    subtitle:
-                        'For long-term retention on iPhone, keep periodic JSON backups in addition to local storage.',
-                    child: Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        _ToolButton(
-                          label: 'Export CSV',
-                          icon: Icons.table_chart_outlined,
-                          onTap: () => widget.onHeaderActionSelected(
-                            HeaderAction.exportCsv,
-                          ),
-                        ),
-                        _ToolButton(
-                          label: 'Backup JSON',
-                          icon: Icons.download_for_offline_outlined,
-                          onTap: () => widget.onHeaderActionSelected(
-                            HeaderAction.backupJson,
-                          ),
-                        ),
-                        _ToolButton(
-                          label: 'Restore JSON',
-                          icon: Icons.upload_file_outlined,
-                          onTap: () => widget.onHeaderActionSelected(
-                            HeaderAction.restoreJson,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _SectionCard(
-                    title: 'Recent logs',
-                    subtitle: recentEntries.isEmpty
-                        ? 'Your saved entries will show up here.'
-                        : 'Tap a day to edit or remove it.',
-                    child: recentEntries.isEmpty
-                        ? const _EmptyState(
-                            title: 'No local entries yet',
-                            subtitle:
-                                'Save your first day to start building trends and reports.',
-                          )
-                        : Column(
-                            children: [
-                              for (
-                                var index = 0;
-                                index < recentEntries.length;
-                                index++
-                              )
-                                Padding(
-                                  padding: EdgeInsets.only(
-                                    bottom: index == recentEntries.length - 1
-                                        ? 0
-                                        : 12,
-                                  ),
-                                  child: _RecentEntryTile(
-                                    entry: recentEntries[index],
-                                    onEdit: () =>
-                                        _loadEntry(recentEntries[index]),
-                                    onDelete: () =>
-                                        _deleteEntry(recentEntries[index]),
-                                  ),
-                                ),
-                            ],
-                          ),
-                  ),
-                ],
-              );
-
-              if (!wideLayout) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    mainContent,
-                    const SizedBox(height: 16),
-                    sideContent,
                   ],
                 );
-              }
 
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 7, child: mainContent),
-                  const SizedBox(width: 18),
-                  Expanded(flex: 4, child: sideContent),
-                ],
-              );
-            },
-          ),
-        ],
+                final sideContent = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SectionCard(
+                      title: 'Data tools',
+                      subtitle:
+                          'For long-term retention on iPhone, keep periodic JSON backups in addition to local storage.',
+                      child: Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          _ToolButton(
+                            label: 'Export CSV',
+                            icon: Icons.table_chart_outlined,
+                            onTap: () => widget.onHeaderActionSelected(
+                              HeaderAction.exportCsv,
+                            ),
+                          ),
+                          _ToolButton(
+                            label: 'Backup JSON',
+                            icon: Icons.download_for_offline_outlined,
+                            onTap: () => widget.onHeaderActionSelected(
+                              HeaderAction.backupJson,
+                            ),
+                          ),
+                          _ToolButton(
+                            label: 'Restore JSON',
+                            icon: Icons.upload_file_outlined,
+                            onTap: () => widget.onHeaderActionSelected(
+                              HeaderAction.restoreJson,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _SectionCard(
+                      title: 'Recent logs',
+                      subtitle: recentEntries.isEmpty
+                          ? 'Your saved entries will show up here.'
+                          : 'Tap a day to edit or remove it.',
+                      child: recentEntries.isEmpty
+                          ? const _EmptyState(
+                              title: 'No local entries yet',
+                              subtitle:
+                                  'Save your first day to start building trends and reports.',
+                            )
+                          : Column(
+                              children: [
+                                for (
+                                  var index = 0;
+                                  index < recentEntries.length;
+                                  index++
+                                )
+                                  Padding(
+                                    padding: EdgeInsets.only(
+                                      bottom: index == recentEntries.length - 1
+                                          ? 0
+                                          : 12,
+                                    ),
+                                    child: _RecentEntryTile(
+                                      entry: recentEntries[index],
+                                      onEdit: () =>
+                                          _loadEntry(recentEntries[index]),
+                                      onDelete: () =>
+                                          _deleteEntry(recentEntries[index]),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                    ),
+                  ],
+                );
+
+                if (!wideLayout) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      mainContent,
+                      const SizedBox(height: 16),
+                      sideContent,
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 7, child: mainContent),
+                    const SizedBox(width: 18),
+                    Expanded(flex: 4, child: sideContent),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1215,280 +1230,283 @@ class DashboardPage extends StatelessWidget {
     final latestEntry = allEntries.isEmpty ? null : allEntries.last;
     final dateFormat = DateFormat('MMM d');
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _PageHeader(
-            title: 'Dashboard',
-            subtitle:
-                'Read trends across weight, nutrition, measurements, and training from local on-device data.',
-            badge: _presetLabel(preset),
-            actionButton: PopupMenuButton<HeaderAction>(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+    return Material(
+      color: Colors.transparent,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _PageHeader(
+              title: 'Dashboard',
+              subtitle:
+                  'Read trends across weight, nutrition, measurements, and training from local on-device data.',
+              badge: _presetLabel(preset),
+              actionButton: PopupMenuButton<HeaderAction>(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                onSelected: onHeaderActionSelected,
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: HeaderAction.exportCsv,
+                    child: Text('Export CSV'),
+                  ),
+                  PopupMenuItem(
+                    value: HeaderAction.backupJson,
+                    child: Text('Backup JSON'),
+                  ),
+                  PopupMenuItem(
+                    value: HeaderAction.restoreJson,
+                    child: Text('Restore JSON'),
+                  ),
+                ],
+                child: const _HeaderMenuButton(label: 'Tools'),
               ),
-              onSelected: onHeaderActionSelected,
-              itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: HeaderAction.exportCsv,
-                  child: Text('Export CSV'),
-                ),
-                PopupMenuItem(
-                  value: HeaderAction.backupJson,
-                  child: Text('Backup JSON'),
-                ),
-                PopupMenuItem(
-                  value: HeaderAction.restoreJson,
-                  child: Text('Restore JSON'),
-                ),
-              ],
-              child: const _HeaderMenuButton(label: 'Tools'),
             ),
-          ),
-          const SizedBox(height: 18),
-          _HeroCard(
-            eyebrow: 'Dashboard / Reports',
-            title: latestEntry == null
-                ? 'Waiting on your first saved day'
-                : 'Current snapshot',
-            description: latestEntry == null
-                ? 'Once you save entries, this page will chart weight, body fat, calories, protein, and workout frequency fully offline.'
-                : 'Latest log from ${DateFormat('MMM d, yyyy').format(latestEntry.date)}. Reports below follow the selected date range.',
-            metrics: [
-              _HeroMetric(
-                label: 'Current weight',
-                value: _metricNumber(
-                  overallMetrics.currentWeight,
-                  suffix: ' kg',
-                ),
-              ),
-              _HeroMetric(
-                label: 'Current body fat',
-                value: _metricNumber(
-                  overallMetrics.currentBodyFat,
-                  suffix: '%',
-                ),
-              ),
-              _HeroMetric(
-                label: 'Range',
-                value:
-                    '${dateFormat.format(reportRange.start)} - ${dateFormat.format(reportRange.end)}',
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          _SectionCard(
-            title: 'Reports',
-            subtitle:
-                'Filter summaries and charts by preset windows or a custom date range.',
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                for (final presetOption in ReportPreset.values)
-                  ChoiceChip(
-                    label: Text(_presetLabel(presetOption)),
-                    selected: preset == presetOption,
-                    onSelected: (_) => onPresetSelected(presetOption),
-                  ),
-                OutlinedButton.icon(
-                  onPressed: onPickCustomRange,
-                  icon: const Icon(Icons.date_range_rounded),
-                  label: const Text('Pick custom range'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (filteredEntries.isEmpty)
-            const _SectionCard(
-              title: 'No entries in this range',
-              child: _EmptyState(
-                title: 'Nothing to chart yet',
-                subtitle:
-                    'Try a wider report window or restore a backup once you have one.',
-              ),
-            )
-          else ...[
-            _MetricsGrid(
-              cards: [
-                _MetricCardData(
-                  title: 'Current weight',
+            const SizedBox(height: 18),
+            _HeroCard(
+              eyebrow: 'Dashboard / Reports',
+              title: latestEntry == null
+                  ? 'Waiting on your first saved day'
+                  : 'Current snapshot',
+              description: latestEntry == null
+                  ? 'Once you save entries, this page will chart weight, body fat, calories, protein, and workout frequency fully offline.'
+                  : 'Latest log from ${DateFormat('MMM d, yyyy').format(latestEntry.date)}. Reports below follow the selected date range.',
+              metrics: [
+                _HeroMetric(
+                  label: 'Current weight',
                   value: _metricNumber(
-                    reportMetrics.currentWeight,
-                    suffix: ' kg',
-                  ),
-                  tone: MetricTone.primary,
-                ),
-                _MetricCardData(
-                  title: 'Starting weight',
-                  value: _metricNumber(
-                    reportMetrics.startingWeight,
+                    overallMetrics.currentWeight,
                     suffix: ' kg',
                   ),
                 ),
-                _MetricCardData(
-                  title: 'Total weight loss',
-                  value: _signedMetric(reportMetrics.totalWeightLoss, ' kg'),
-                  tone: MetricTone.positive,
-                ),
-                _MetricCardData(
-                  title: 'Average weight',
+                _HeroMetric(
+                  label: 'Current body fat',
                   value: _metricNumber(
-                    reportMetrics.averageWeight,
-                    suffix: ' kg',
-                  ),
-                ),
-                _MetricCardData(
-                  title: 'Lowest weight',
-                  value: _metricNumber(
-                    reportMetrics.lowestWeight,
-                    suffix: ' kg',
-                  ),
-                ),
-                _MetricCardData(
-                  title: 'Highest weight',
-                  value: _metricNumber(
-                    reportMetrics.highestWeight,
-                    suffix: ' kg',
-                  ),
-                ),
-                _MetricCardData(
-                  title: 'Current body fat',
-                  value: _metricNumber(
-                    reportMetrics.currentBodyFat,
+                    overallMetrics.currentBodyFat,
                     suffix: '%',
                   ),
                 ),
-                _MetricCardData(
-                  title: 'Body fat change',
-                  value: _signedMetric(reportMetrics.bodyFatChange, '%'),
-                  tone: MetricTone.positive,
-                  invertTone: true,
-                ),
-                _MetricCardData(
-                  title: 'Waist change',
-                  value: _signedMetric(reportMetrics.waistChange, ' cm'),
-                  tone: MetricTone.positive,
-                  invertTone: true,
-                ),
-                _MetricCardData(
-                  title: 'Average calories',
-                  value: _metricNumber(
-                    reportMetrics.averageCalories,
-                    digits: 0,
-                  ),
-                ),
-                _MetricCardData(
-                  title: 'Average protein',
-                  value: _metricNumber(
-                    reportMetrics.averageProtein,
-                    suffix: ' g',
-                  ),
-                ),
-                _MetricCardData(
-                  title: 'Workout days',
-                  value: reportMetrics.totalWorkoutDays.toString(),
-                ),
-                _MetricCardData(
-                  title: 'Total sets',
-                  value: reportMetrics.totalSets.toString(),
-                ),
-                _MetricCardData(
-                  title: 'Workout volume',
+                _HeroMetric(
+                  label: 'Range',
                   value:
-                      '${NumberFormat.compact().format(reportMetrics.workoutVolume)} kg',
+                      '${dateFormat.format(reportRange.start)} - ${dateFormat.format(reportRange.end)}',
                 ),
               ],
             ),
-            const SizedBox(height: 18),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final chartWidth = constraints.maxWidth >= 1000
-                    ? (constraints.maxWidth - 16) / 2
-                    : constraints.maxWidth;
-
-                return Wrap(
-                  spacing: 16,
-                  runSpacing: 16,
-                  children: [
-                    SizedBox(
-                      width: chartWidth,
-                      child: _TrendChartCard(
-                        title: 'Weight trend',
-                        color: const Color(0xFF1D7A57),
-                        suffix: ' kg',
-                        points: _buildTrendPoints(
-                          filteredEntries,
-                          (entry) => entry.weightKg,
-                        ),
-                      ),
+            const SizedBox(height: 20),
+            _SectionCard(
+              title: 'Reports',
+              subtitle:
+                  'Filter summaries and charts by preset windows or a custom date range.',
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final presetOption in ReportPreset.values)
+                    ChoiceChip(
+                      label: Text(_presetLabel(presetOption)),
+                      selected: preset == presetOption,
+                      onSelected: (_) => onPresetSelected(presetOption),
                     ),
-                    SizedBox(
-                      width: chartWidth,
-                      child: _TrendChartCard(
-                        title: 'Body fat trend',
-                        color: const Color(0xFFF28452),
-                        suffix: '%',
-                        points: _buildTrendPoints(
-                          filteredEntries,
-                          (entry) => entry.bodyFatPercentage,
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: chartWidth,
-                      child: _TrendChartCard(
-                        title: 'Waist trend',
-                        color: const Color(0xFF376996),
-                        suffix: ' cm',
-                        points: _buildTrendPoints(
-                          filteredEntries,
-                          (entry) => entry.waistCm,
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: chartWidth,
-                      child: _TrendChartCard(
-                        title: 'Calories trend',
-                        color: const Color(0xFFE2AA2B),
-                        suffix: '',
-                        digits: 0,
-                        points: _buildTrendPoints(
-                          filteredEntries,
-                          (entry) => entry.calories?.toDouble(),
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: chartWidth,
-                      child: _TrendChartCard(
-                        title: 'Protein trend',
-                        color: const Color(0xFF8B5CF6),
-                        suffix: ' g',
-                        digits: 0,
-                        points: _buildTrendPoints(
-                          filteredEntries,
-                          (entry) => entry.proteinGrams,
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: chartWidth,
-                      child: _WorkoutFrequencyChartCard(
-                        title: 'Workout frequency',
-                        buckets: buildWorkoutFrequency(filteredEntries),
-                      ),
-                    ),
-                  ],
-                );
-              },
+                  OutlinedButton.icon(
+                    onPressed: onPickCustomRange,
+                    icon: const Icon(Icons.date_range_rounded),
+                    label: const Text('Pick custom range'),
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(height: 16),
+            if (filteredEntries.isEmpty)
+              const _SectionCard(
+                title: 'No entries in this range',
+                child: _EmptyState(
+                  title: 'Nothing to chart yet',
+                  subtitle:
+                      'Try a wider report window or restore a backup once you have one.',
+                ),
+              )
+            else ...[
+              _MetricsGrid(
+                cards: [
+                  _MetricCardData(
+                    title: 'Current weight',
+                    value: _metricNumber(
+                      reportMetrics.currentWeight,
+                      suffix: ' kg',
+                    ),
+                    tone: MetricTone.primary,
+                  ),
+                  _MetricCardData(
+                    title: 'Starting weight',
+                    value: _metricNumber(
+                      reportMetrics.startingWeight,
+                      suffix: ' kg',
+                    ),
+                  ),
+                  _MetricCardData(
+                    title: 'Total weight loss',
+                    value: _signedMetric(reportMetrics.totalWeightLoss, ' kg'),
+                    tone: MetricTone.positive,
+                  ),
+                  _MetricCardData(
+                    title: 'Average weight',
+                    value: _metricNumber(
+                      reportMetrics.averageWeight,
+                      suffix: ' kg',
+                    ),
+                  ),
+                  _MetricCardData(
+                    title: 'Lowest weight',
+                    value: _metricNumber(
+                      reportMetrics.lowestWeight,
+                      suffix: ' kg',
+                    ),
+                  ),
+                  _MetricCardData(
+                    title: 'Highest weight',
+                    value: _metricNumber(
+                      reportMetrics.highestWeight,
+                      suffix: ' kg',
+                    ),
+                  ),
+                  _MetricCardData(
+                    title: 'Current body fat',
+                    value: _metricNumber(
+                      reportMetrics.currentBodyFat,
+                      suffix: '%',
+                    ),
+                  ),
+                  _MetricCardData(
+                    title: 'Body fat change',
+                    value: _signedMetric(reportMetrics.bodyFatChange, '%'),
+                    tone: MetricTone.positive,
+                    invertTone: true,
+                  ),
+                  _MetricCardData(
+                    title: 'Waist change',
+                    value: _signedMetric(reportMetrics.waistChange, ' cm'),
+                    tone: MetricTone.positive,
+                    invertTone: true,
+                  ),
+                  _MetricCardData(
+                    title: 'Average calories',
+                    value: _metricNumber(
+                      reportMetrics.averageCalories,
+                      digits: 0,
+                    ),
+                  ),
+                  _MetricCardData(
+                    title: 'Average protein',
+                    value: _metricNumber(
+                      reportMetrics.averageProtein,
+                      suffix: ' g',
+                    ),
+                  ),
+                  _MetricCardData(
+                    title: 'Workout days',
+                    value: reportMetrics.totalWorkoutDays.toString(),
+                  ),
+                  _MetricCardData(
+                    title: 'Total sets',
+                    value: reportMetrics.totalSets.toString(),
+                  ),
+                  _MetricCardData(
+                    title: 'Workout volume',
+                    value:
+                        '${NumberFormat.compact().format(reportMetrics.workoutVolume)} kg',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final chartWidth = constraints.maxWidth >= 1000
+                      ? (constraints.maxWidth - 16) / 2
+                      : constraints.maxWidth;
+
+                  return Wrap(
+                    spacing: 16,
+                    runSpacing: 16,
+                    children: [
+                      SizedBox(
+                        width: chartWidth,
+                        child: _TrendChartCard(
+                          title: 'Weight trend',
+                          color: const Color(0xFF1D7A57),
+                          suffix: ' kg',
+                          points: _buildTrendPoints(
+                            filteredEntries,
+                            (entry) => entry.weightKg,
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: chartWidth,
+                        child: _TrendChartCard(
+                          title: 'Body fat trend',
+                          color: const Color(0xFFF28452),
+                          suffix: '%',
+                          points: _buildTrendPoints(
+                            filteredEntries,
+                            (entry) => entry.bodyFatPercentage,
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: chartWidth,
+                        child: _TrendChartCard(
+                          title: 'Waist trend',
+                          color: const Color(0xFF376996),
+                          suffix: ' cm',
+                          points: _buildTrendPoints(
+                            filteredEntries,
+                            (entry) => entry.waistCm,
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: chartWidth,
+                        child: _TrendChartCard(
+                          title: 'Calories trend',
+                          color: const Color(0xFFE2AA2B),
+                          suffix: '',
+                          digits: 0,
+                          points: _buildTrendPoints(
+                            filteredEntries,
+                            (entry) => entry.calories?.toDouble(),
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: chartWidth,
+                        child: _TrendChartCard(
+                          title: 'Protein trend',
+                          color: const Color(0xFF8B5CF6),
+                          suffix: ' g',
+                          digits: 0,
+                          points: _buildTrendPoints(
+                            filteredEntries,
+                            (entry) => entry.proteinGrams,
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: chartWidth,
+                        child: _WorkoutFrequencyChartCard(
+                          title: 'Workout frequency',
+                          buckets: buildWorkoutFrequency(filteredEntries),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1576,61 +1594,102 @@ class _PageHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        color: Colors.white.withValues(alpha: 0.74),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 18, 18, 18),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(999),
-                    color: const Color(0xFF123826),
-                  ),
-                  child: Text(
-                    badge,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 720;
+
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            color: Colors.white.withValues(alpha: 0.74),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 18, 18, 18),
+          child: stacked
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _PageHeaderText(
+                      theme: theme,
+                      badge: badge,
+                      title: title,
+                      subtitle: subtitle,
                     ),
-                  ),
+                    const SizedBox(height: 16),
+                    actionButton,
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _PageHeaderText(
+                        theme: theme,
+                        badge: badge,
+                        title: title,
+                        subtitle: subtitle,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    actionButton,
+                  ],
                 ),
-                const SizedBox(height: 14),
-                Text(
-                  title,
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.8,
-                    color: const Color(0xFF13231A),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  subtitle,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: const Color(0xFF526152),
-                    height: 1.4,
-                  ),
-                ),
-              ],
+        );
+      },
+    );
+  }
+}
+
+class _PageHeaderText extends StatelessWidget {
+  const _PageHeaderText({
+    required this.theme,
+    required this.badge,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final ThemeData theme;
+  final String badge;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            color: const Color(0xFF123826),
+          ),
+          child: Text(
+            badge,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(width: 12),
-          actionButton,
-        ],
-      ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          title,
+          style: theme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w900,
+            letterSpacing: -0.8,
+            color: const Color(0xFF13231A),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          subtitle,
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: const Color(0xFF526152),
+            height: 1.4,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1884,12 +1943,22 @@ class _TwoColumnFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: left),
-        const SizedBox(width: 12),
-        Expanded(child: right),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 680;
+
+        if (stacked) {
+          return Column(children: [left, const SizedBox(height: 12), right]);
+        }
+
+        return Row(
+          children: [
+            Expanded(child: left),
+            const SizedBox(width: 12),
+            Expanded(child: right),
+          ],
+        );
+      },
     );
   }
 }
