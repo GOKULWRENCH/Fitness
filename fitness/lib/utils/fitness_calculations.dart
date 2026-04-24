@@ -87,11 +87,11 @@ DashboardMetrics buildDashboardMetrics(List<FitnessEntry> entries) {
       .whereType<double>()
       .toList(growable: false);
   final calories = sortedEntries
-      .map((entry) => entry.calories?.toDouble())
+      .map((entry) => entry.totalCalories?.toDouble())
       .whereType<double>()
       .toList(growable: false);
   final proteins = sortedEntries
-      .map((entry) => entry.proteinGrams)
+      .map((entry) => entry.totalProteinGrams)
       .whereType<double>()
       .toList(growable: false);
 

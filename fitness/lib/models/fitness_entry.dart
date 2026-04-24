@@ -1,3 +1,75 @@
+class MealEntry {
+  const MealEntry({
+    required this.name,
+    required this.foods,
+    this.calories,
+    this.proteinGrams,
+  });
+
+  final String name;
+  final String foods;
+  final int? calories;
+  final double? proteinGrams;
+
+  bool get isMeaningful =>
+      name.trim().isNotEmpty ||
+      foods.trim().isNotEmpty ||
+      calories != null ||
+      proteinGrams != null;
+
+  String get summary {
+    final trimmedName = name.trim();
+    final trimmedFoods = foods.trim();
+    if (trimmedName.isNotEmpty && trimmedFoods.isNotEmpty) {
+      return '$trimmedName: $trimmedFoods';
+    }
+    return trimmedName.isNotEmpty ? trimmedName : trimmedFoods;
+  }
+
+  MealEntry copyWith({
+    String? name,
+    String? foods,
+    int? calories,
+    bool clearCalories = false,
+    double? proteinGrams,
+    bool clearProteinGrams = false,
+  }) {
+    return MealEntry(
+      name: name ?? this.name,
+      foods: foods ?? this.foods,
+      calories: clearCalories ? null : (calories ?? this.calories),
+      proteinGrams: clearProteinGrams
+          ? null
+          : (proteinGrams ?? this.proteinGrams),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'foods': foods,
+      'calories': calories,
+      'proteinGrams': proteinGrams,
+    };
+  }
+
+  factory MealEntry.fromJson(
+    Map<String, dynamic> json, {
+    String fallbackName = '',
+  }) {
+    return MealEntry(
+      name: (json['name'] as String?)?.trim() ?? fallbackName,
+      foods: (json['foods'] as String?)?.trim() ?? '',
+      calories: _toInt(json['calories']),
+      proteinGrams: _toDouble(json['proteinGrams']),
+    );
+  }
+
+  factory MealEntry.fromLegacyString(String value, int index) {
+    return MealEntry(name: 'Meal ${index + 1}', foods: value.trim());
+  }
+}
+
 class WorkoutExercise {
   const WorkoutExercise({
     required this.workoutType,
@@ -83,7 +155,7 @@ class FitnessEntry {
   final double? weightKg;
   final int? calories;
   final double? proteinGrams;
-  final List<String> meals;
+  final List<MealEntry> meals;
   final List<WorkoutExercise> exercises;
   final int? workoutDurationMinutes;
   final String notes;
@@ -102,6 +174,33 @@ class FitnessEntry {
       (workoutDurationMinutes ?? 0) > 0 ||
       exercises.any((exercise) => exercise.isMeaningful);
 
+  int? get totalCalories {
+    final values = meals
+        .map((meal) => meal.calories)
+        .whereType<int>()
+        .toList(growable: false);
+    if (values.isNotEmpty) {
+      return values.fold<int>(0, (running, value) => running + value);
+    }
+    return calories;
+  }
+
+  double? get totalProteinGrams {
+    final values = meals
+        .map((meal) => meal.proteinGrams)
+        .whereType<double>()
+        .toList(growable: false);
+    if (values.isNotEmpty) {
+      return values.fold<double>(0, (running, value) => running + value);
+    }
+    return proteinGrams;
+  }
+
+  String get mealsSummary => meals
+      .map((meal) => meal.summary)
+      .where((meal) => meal.isNotEmpty)
+      .join(' | ');
+
   FitnessEntry copyWith({
     String? id,
     DateTime? date,
@@ -111,7 +210,7 @@ class FitnessEntry {
     bool clearCalories = false,
     double? proteinGrams,
     bool clearProteinGrams = false,
-    List<String>? meals,
+    List<MealEntry>? meals,
     List<WorkoutExercise>? exercises,
     int? workoutDurationMinutes,
     bool clearWorkoutDuration = false,
@@ -153,9 +252,9 @@ class FitnessEntry {
       'id': id,
       'date': normalizedDate(date).toIso8601String(),
       'weightKg': weightKg,
-      'calories': calories,
-      'proteinGrams': proteinGrams,
-      'meals': meals,
+      'calories': totalCalories,
+      'proteinGrams': totalProteinGrams,
+      'meals': meals.map((meal) => meal.toJson()).toList(),
       'exercises': exercises.map((exercise) => exercise.toJson()).toList(),
       'workoutDurationMinutes': workoutDurationMinutes,
       'notes': notes,
@@ -182,12 +281,7 @@ class FitnessEntry {
       weightKg: _toDouble(json['weightKg']),
       calories: _toInt(json['calories']),
       proteinGrams: _toDouble(json['proteinGrams']),
-      meals: mealsJson is List
-          ? mealsJson
-                .map((meal) => meal?.toString().trim() ?? '')
-                .where((meal) => meal.isNotEmpty)
-                .toList(growable: false)
-          : const <String>[],
+      meals: _parseMeals(mealsJson),
       exercises: exercisesJson is List
           ? exercisesJson
                 .whereType<Map>()
@@ -218,6 +312,33 @@ class FitnessEntry {
     final day = normalized.day.toString().padLeft(2, '0');
     return '${normalized.year}-$month-$day';
   }
+}
+
+List<MealEntry> _parseMeals(Object? mealsJson) {
+  if (mealsJson is! List) {
+    return const <MealEntry>[];
+  }
+
+  final meals = <MealEntry>[];
+  for (var index = 0; index < mealsJson.length; index++) {
+    final meal = mealsJson[index];
+    if (meal is Map) {
+      meals.add(
+        MealEntry.fromJson(
+          Map<String, dynamic>.from(meal),
+          fallbackName: 'Meal ${index + 1}',
+        ),
+      );
+      continue;
+    }
+
+    final value = meal?.toString().trim() ?? '';
+    if (value.isNotEmpty) {
+      meals.add(MealEntry.fromLegacyString(value, index));
+    }
+  }
+
+  return meals.where((meal) => meal.isMeaningful).toList(growable: false);
 }
 
 double? _toDouble(Object? value) {

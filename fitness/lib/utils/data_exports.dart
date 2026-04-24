@@ -13,9 +13,19 @@ String buildCsvExport(List<FitnessEntry> entries) {
       <String>[
         entry.date.toIso8601String().split('T').first,
         _stringifyNumber(entry.weightKg),
-        entry.calories?.toString() ?? '',
-        _stringifyNumber(entry.proteinGrams),
-        _escapeCsv(entry.meals.join(' | ')),
+        entry.totalCalories?.toString() ?? '',
+        _stringifyNumber(entry.totalProteinGrams),
+        _escapeCsv(
+          entry.meals
+              .map(
+                (meal) =>
+                    '${meal.summary}'
+                    '${meal.calories != null ? ' (${meal.calories} kcal' : ''}'
+                    '${meal.proteinGrams != null ? ', ${_stringifyNumber(meal.proteinGrams)} g protein' : ''}'
+                    '${meal.calories != null || meal.proteinGrams != null ? ')' : ''}',
+              )
+              .join(' | '),
+        ),
         entry.workoutDurationMinutes?.toString() ?? '',
         _escapeCsv(entry.notes),
         _stringifyNumber(entry.waistCm),
@@ -42,7 +52,7 @@ String buildCsvExport(List<FitnessEntry> entries) {
 
 String buildJsonBackup(List<FitnessEntry> entries) {
   final payload = <String, dynamic>{
-    'version': 1,
+    'version': 2,
     'exportedAt': DateTime.now().toIso8601String(),
     'entries': entries.map((entry) => entry.toJson()).toList(),
   };

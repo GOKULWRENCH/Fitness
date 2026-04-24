@@ -481,15 +481,13 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _weightController = TextEditingController();
-  final TextEditingController _caloriesController = TextEditingController();
-  final TextEditingController _proteinController = TextEditingController();
-  final TextEditingController _mealsController = TextEditingController();
   final TextEditingController _durationController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
   final TextEditingController _waistController = TextEditingController();
   final TextEditingController _neckController = TextEditingController();
   final TextEditingController _heightController = TextEditingController();
 
+  final List<_MealDraft> _mealDrafts = <_MealDraft>[];
   final List<_ExerciseDraft> _exerciseDrafts = <_ExerciseDraft>[];
 
   DateTime _selectedDate = FitnessEntry.normalizedDate(DateTime.now());
@@ -498,6 +496,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _mealDrafts.add(_createMealDraft());
     _exerciseDrafts.add(_ExerciseDraft());
     _attachListeners();
     _resetForm(prefillHeight: true);
@@ -518,14 +517,14 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _scrollController.dispose();
     _weightController.dispose();
-    _caloriesController.dispose();
-    _proteinController.dispose();
-    _mealsController.dispose();
     _durationController.dispose();
     _notesController.dispose();
     _waistController.dispose();
     _neckController.dispose();
     _heightController.dispose();
+    for (final draft in _mealDrafts) {
+      draft.dispose();
+    }
     for (final draft in _exerciseDrafts) {
       draft.dispose();
     }
@@ -535,9 +534,6 @@ class _HomePageState extends State<HomePage> {
   void _attachListeners() {
     for (final controller in <TextEditingController>[
       _weightController,
-      _caloriesController,
-      _proteinController,
-      _mealsController,
       _durationController,
       _notesController,
       _waistController,
@@ -560,9 +556,6 @@ class _HomePageState extends State<HomePage> {
     _editingEntryId = null;
 
     _weightController.clear();
-    _caloriesController.clear();
-    _proteinController.clear();
-    _mealsController.clear();
     _durationController.clear();
     _notesController.clear();
     _waistController.clear();
@@ -570,6 +563,13 @@ class _HomePageState extends State<HomePage> {
     _heightController.text = prefillHeight && latestEntry?.heightCm != null
         ? latestEntry!.heightCm!.toStringAsFixed(0)
         : '';
+
+    for (final draft in _mealDrafts) {
+      draft.dispose();
+    }
+    _mealDrafts
+      ..clear()
+      ..add(_createMealDraft());
 
     for (final draft in _exerciseDrafts) {
       draft.dispose();
@@ -587,14 +587,24 @@ class _HomePageState extends State<HomePage> {
     _editingEntryId = entry.id;
     _selectedDate = entry.date;
     _weightController.text = _formatControllerValue(entry.weightKg);
-    _caloriesController.text = entry.calories?.toString() ?? '';
-    _proteinController.text = _formatControllerValue(entry.proteinGrams);
-    _mealsController.text = entry.meals.join('\n');
     _durationController.text = entry.workoutDurationMinutes?.toString() ?? '';
     _notesController.text = entry.notes;
     _waistController.text = _formatControllerValue(entry.waistCm);
     _neckController.text = _formatControllerValue(entry.neckCm);
     _heightController.text = _formatControllerValue(entry.heightCm);
+
+    for (final draft in _mealDrafts) {
+      draft.dispose();
+    }
+    _mealDrafts
+      ..clear()
+      ..addAll(
+        entry.meals.isEmpty
+            ? <_MealDraft>[_createMealDraft()]
+            : entry.meals
+                  .map((meal) => _createMealDraft(meal))
+                  .toList(growable: false),
+      );
 
     for (final draft in _exerciseDrafts) {
       draft.dispose();
@@ -642,11 +652,18 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    final meals = _mealsController.text
-        .split('\n')
-        .map((meal) => meal.trim())
-        .where((meal) => meal.isNotEmpty)
+    final meals = _mealDrafts
+        .map((draft) => draft.toMeal())
+        .where((meal) => meal.isMeaningful)
         .toList(growable: false);
+    final totalCalories = meals
+        .map((meal) => meal.calories)
+        .whereType<int>()
+        .fold<int>(0, (running, value) => running + value);
+    final totalProtein = meals
+        .map((meal) => meal.proteinGrams)
+        .whereType<double>()
+        .fold<double>(0, (running, value) => running + value);
     final exercises = _exerciseDrafts
         .map((draft) => draft.toExercise())
         .where((exercise) => exercise.isMeaningful)
@@ -666,8 +683,12 @@ class _HomePageState extends State<HomePage> {
       id: FitnessEntry.idForDate(_selectedDate),
       date: _selectedDate,
       weightKg: _parseDouble(_weightController),
-      calories: _parseInt(_caloriesController),
-      proteinGrams: _parseDouble(_proteinController),
+      calories: meals.any((meal) => meal.calories != null)
+          ? totalCalories
+          : null,
+      proteinGrams: meals.any((meal) => meal.proteinGrams != null)
+          ? double.parse(totalProtein.toStringAsFixed(1))
+          : null,
       meals: meals,
       exercises: exercises,
       workoutDurationMinutes: _parseInt(_durationController),
@@ -730,9 +751,7 @@ class _HomePageState extends State<HomePage> {
 
   bool get _hasMeaningfulData {
     return _parseDouble(_weightController) != null ||
-        _parseInt(_caloriesController) != null ||
-        _parseDouble(_proteinController) != null ||
-        _mealsController.text.trim().isNotEmpty ||
+        _mealDrafts.any((draft) => draft.toMeal().isMeaningful) ||
         _parseInt(_durationController) != null ||
         _notesController.text.trim().isNotEmpty ||
         _parseDouble(_waistController) != null ||
@@ -741,12 +760,49 @@ class _HomePageState extends State<HomePage> {
         _exerciseDrafts.any((draft) => draft.toExercise().isMeaningful);
   }
 
+  _MealDraft _createMealDraft([MealEntry? meal]) {
+    final draft = meal == null ? _MealDraft() : _MealDraft.fromMeal(meal);
+    for (final controller in <TextEditingController>[
+      draft.nameController,
+      draft.foodsController,
+      draft.caloriesController,
+      draft.proteinController,
+    ]) {
+      controller.addListener(_triggerRebuild);
+    }
+    return draft;
+  }
+
+  int? get _dailyMealCalories {
+    final values = _mealDrafts
+        .map((draft) => draft.toMeal().calories)
+        .whereType<int>()
+        .toList(growable: false);
+    if (values.isEmpty) {
+      return null;
+    }
+    return values.fold<int>(0, (running, value) => running + value);
+  }
+
+  double? get _dailyMealProtein {
+    final values = _mealDrafts
+        .map((draft) => draft.toMeal().proteinGrams)
+        .whereType<double>()
+        .toList(growable: false);
+    if (values.isEmpty) {
+      return null;
+    }
+    return values.fold<double>(0, (running, value) => running + value);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final latestEntry = widget.repository.latestEntry;
     final existingEntry = widget.repository.entryForDate(_selectedDate);
     final bodyFat = _derivedBodyFat;
+    final dailyMealCalories = _dailyMealCalories;
+    final dailyMealProtein = _dailyMealProtein;
     final recentEntries = widget.repository.entries.reversed.take(7).toList();
 
     return Material(
@@ -793,7 +849,7 @@ class _HomePageState extends State<HomePage> {
                   ? 'Home / Data entry'
                   : 'Editing mode',
               description: latestEntry == null
-                  ? 'Start with your current weight, calories, protein, and training details. Everything stays on-device in browser storage.'
+                  ? 'Start with your weight, meal-by-meal nutrition, and training details. Everything stays on-device in browser storage.'
                   : 'Latest log: ${DateFormat('MMM d, yyyy').format(latestEntry.date)}. Body fat uses the US Navy male formula from waist, neck, and height.',
               metrics: [
                 _HeroMetric(
@@ -803,17 +859,16 @@ class _HomePageState extends State<HomePage> {
                       : '--',
                 ),
                 _HeroMetric(
+                  label: 'Latest calories',
+                  value: latestEntry?.totalCalories != null
+                      ? '${latestEntry!.totalCalories} kcal'
+                      : '--',
+                ),
+                _HeroMetric(
                   label: 'Current body fat',
                   value: latestEntry?.bodyFatPercentage != null
                       ? '${latestEntry!.bodyFatPercentage!.toStringAsFixed(1)}%'
                       : '--',
-                ),
-                _HeroMetric(
-                  label: 'Workout days',
-                  value: widget.repository.entries
-                      .where((entry) => entry.hasWorkout)
-                      .length
-                      .toString(),
                 ),
               ],
             ),
@@ -865,24 +920,49 @@ class _HomePageState extends State<HomePage> {
                               icon: Icons.monitor_weight_outlined,
                             ),
                             right: _NumberField(
-                              controller: _caloriesController,
-                              label: 'Calories',
-                              icon: Icons.local_fire_department_outlined,
-                              allowDecimal: false,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _TwoColumnFields(
-                            left: _NumberField(
-                              controller: _proteinController,
-                              label: 'Protein (g)',
-                              icon: Icons.egg_alt_outlined,
-                            ),
-                            right: _NumberField(
                               controller: _heightController,
                               label: 'Height (cm)',
                               icon: Icons.height_rounded,
                               helperText: 'Used for body fat formula.',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(22),
+                              color: const Color(0xFFF4F7F2),
+                            ),
+                            child: Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: [
+                                _NutritionSummaryChip(
+                                  label: 'Meals today',
+                                  value: _mealDrafts
+                                      .where(
+                                        (draft) => draft.toMeal().isMeaningful,
+                                      )
+                                      .length
+                                      .toString(),
+                                  icon: Icons.restaurant_menu_rounded,
+                                ),
+                                _NutritionSummaryChip(
+                                  label: 'Daily calories',
+                                  value: dailyMealCalories != null
+                                      ? '$dailyMealCalories kcal'
+                                      : '--',
+                                  icon: Icons.local_fire_department_outlined,
+                                ),
+                                _NutritionSummaryChip(
+                                  label: 'Daily protein',
+                                  value: dailyMealProtein != null
+                                      ? '${dailyMealProtein.toStringAsFixed(1)} g'
+                                      : '--',
+                                  icon: Icons.egg_alt_outlined,
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -892,20 +972,43 @@ class _HomePageState extends State<HomePage> {
                     _SectionCard(
                       title: 'Meals and notes',
                       subtitle:
-                          'Use one line per meal so it stays easy to scan in backups and exports.',
+                          'Enter foods plus calories and protein for each meal. Daily totals below feed the dashboard averages and charts.',
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          TextField(
-                            controller: _mealsController,
-                            maxLines: 5,
-                            textInputAction: TextInputAction.newline,
-                            decoration: const InputDecoration(
-                              labelText: 'Meals of the day',
-                              hintText:
-                                  'Breakfast - oats and fruit\nLunch - chicken rice bowl\nDinner - salmon and potatoes',
+                          for (
+                            var index = 0;
+                            index < _mealDrafts.length;
+                            index++
+                          )
+                            Padding(
+                              padding: EdgeInsets.only(
+                                bottom: index == _mealDrafts.length - 1
+                                    ? 0
+                                    : 12,
+                              ),
+                              child: _MealEditorCard(
+                                index: index,
+                                draft: _mealDrafts[index],
+                                canRemove: _mealDrafts.length > 1,
+                                onRemove: () {
+                                  final removed = _mealDrafts.removeAt(index);
+                                  removed.dispose();
+                                  setState(() {});
+                                },
+                              ),
                             ),
-                          ),
                           const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _mealDrafts.add(_createMealDraft());
+                              });
+                            },
+                            icon: const Icon(Icons.add_circle_outline_rounded),
+                            label: const Text('Add meal'),
+                          ),
+                          const SizedBox(height: 14),
                           TextField(
                             controller: _notesController,
                             maxLines: 4,
@@ -1271,7 +1374,7 @@ class DashboardPage extends StatelessWidget {
                   ? 'Waiting on your first saved day'
                   : 'Current snapshot',
               description: latestEntry == null
-                  ? 'Once you save entries, this page will chart weight, body fat, calories, protein, and workout frequency fully offline.'
+                  ? 'Once you save entries, this page will chart weight, body fat, meal-based calories and protein, and workout frequency fully offline.'
                   : 'Latest log from ${DateFormat('MMM d, yyyy').format(latestEntry.date)}. Reports below follow the selected date range.',
               metrics: [
                 _HeroMetric(
@@ -1476,7 +1579,7 @@ class DashboardPage extends StatelessWidget {
                           digits: 0,
                           points: _buildTrendPoints(
                             filteredEntries,
-                            (entry) => entry.calories?.toDouble(),
+                            (entry) => entry.totalCalories?.toDouble(),
                           ),
                         ),
                       ),
@@ -1489,7 +1592,7 @@ class DashboardPage extends StatelessWidget {
                           digits: 0,
                           points: _buildTrendPoints(
                             filteredEntries,
-                            (entry) => entry.proteinGrams,
+                            (entry) => entry.totalProteinGrams,
                           ),
                         ),
                       ),
@@ -1522,6 +1625,54 @@ class DashboardPage extends StatelessWidget {
         })
         .whereType<_TrendPoint>()
         .toList(growable: false);
+  }
+}
+
+class _MealDraft {
+  _MealDraft({
+    String name = '',
+    String foods = '',
+    String calories = '',
+    String protein = '',
+  }) : nameController = TextEditingController(text: name),
+       foodsController = TextEditingController(text: foods),
+       caloriesController = TextEditingController(text: calories),
+       proteinController = TextEditingController(text: protein);
+
+  factory _MealDraft.fromMeal(MealEntry meal) {
+    return _MealDraft(
+      name: meal.name,
+      foods: meal.foods,
+      calories: meal.calories?.toString() ?? '',
+      protein: meal.proteinGrams == null
+          ? ''
+          : meal.proteinGrams == meal.proteinGrams!.roundToDouble()
+          ? meal.proteinGrams!.toStringAsFixed(0)
+          : meal.proteinGrams!.toStringAsFixed(1),
+    );
+  }
+
+  final TextEditingController nameController;
+  final TextEditingController foodsController;
+  final TextEditingController caloriesController;
+  final TextEditingController proteinController;
+
+  MealEntry toMeal() {
+    return MealEntry(
+      name: nameController.text.trim(),
+      foods: foodsController.text.trim(),
+      calories: int.tryParse(caloriesController.text.trim()),
+      proteinGrams: double.tryParse(
+        proteinController.text.replaceAll(',', '.').trim(),
+      ),
+    );
+  }
+
+  void dispose() {
+    nameController.dispose();
+    foodsController.dispose();
+    caloriesController.dispose();
+    proteinController.dispose();
   }
 }
 
@@ -1992,6 +2143,142 @@ class _NumberField extends StatelessWidget {
   }
 }
 
+class _NutritionSummaryChip extends StatelessWidget {
+  const _NutritionSummaryChip({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        color: Colors.white,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: const Color(0xFF1D7A57)),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: const Color(0xFF617260)),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MealEditorCard extends StatelessWidget {
+  const _MealEditorCard({
+    required this.index,
+    required this.draft,
+    required this.canRemove,
+    required this.onRemove,
+  });
+
+  final int index;
+  final _MealDraft draft;
+  final bool canRemove;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: const Color(0xFFF5F7F3),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Meal ${index + 1}',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const Spacer(),
+              if (canRemove)
+                IconButton(
+                  onPressed: onRemove,
+                  icon: const Icon(Icons.delete_outline_rounded),
+                ),
+            ],
+          ),
+          _TwoColumnFields(
+            left: TextField(
+              controller: draft.nameController,
+              decoration: const InputDecoration(
+                labelText: 'Meal name',
+                hintText: 'Breakfast, lunch, dinner...',
+                prefixIcon: Icon(Icons.breakfast_dining_rounded),
+              ),
+            ),
+            right: TextField(
+              controller: draft.foodsController,
+              maxLines: 3,
+              textInputAction: TextInputAction.newline,
+              decoration: const InputDecoration(
+                labelText: 'Food / items',
+                hintText: 'Oats, banana, whey protein',
+                prefixIcon: Icon(Icons.restaurant_menu_rounded),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _TwoColumnFields(
+            left: TextField(
+              controller: draft.caloriesController,
+              keyboardType: const TextInputType.numberWithOptions(),
+              decoration: const InputDecoration(
+                labelText: 'Calories',
+                prefixIcon: Icon(Icons.local_fire_department_outlined),
+              ),
+            ),
+            right: TextField(
+              controller: draft.proteinController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Protein (g)',
+                prefixIcon: Icon(Icons.egg_alt_outlined),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ExerciseEditorCard extends StatelessWidget {
   const _ExerciseEditorCard({
     required this.index,
@@ -2169,9 +2456,14 @@ class _RecentEntryTile extends StatelessWidget {
                     : 'No weight',
               ),
               _MiniChip(
-                label: entry.calories != null
-                    ? '${entry.calories} kcal'
+                label: entry.totalCalories != null
+                    ? '${entry.totalCalories} kcal'
                     : 'No calories',
+              ),
+              _MiniChip(
+                label: entry.totalProteinGrams != null
+                    ? '${entry.totalProteinGrams!.toStringAsFixed(1)} g protein'
+                    : 'No protein',
               ),
               _MiniChip(
                 label: entry.hasWorkout
