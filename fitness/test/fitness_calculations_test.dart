@@ -22,6 +22,23 @@ void main() {
     expect(meal.fatGrams, 10);
   });
 
+  test('set-wise workout exercises compute totals and volume', () {
+    const exercise = WorkoutExercise(
+      workoutType: 'Chest',
+      exerciseName: 'Bench Press',
+      performedSets: [
+        WorkoutSetEntry(reps: 10, weightKg: 40),
+        WorkoutSetEntry(reps: 8, weightKg: 45),
+        WorkoutSetEntry(reps: 6, weightKg: 50),
+      ],
+    );
+
+    expect(exercise.totalSets, 3);
+    expect(exercise.totalReps, 24);
+    expect(exercise.topWeightKg, 50);
+    expect(exercise.volume, 1060);
+  });
+
   test('weekly nutrition and workout summaries include custom metrics', () {
     final monday = FitnessEntry(
       id: '2026-04-20',
@@ -37,6 +54,8 @@ void main() {
           quantity: 1,
           caloriesPerServing: 500,
           proteinPerServing: 30,
+          carbsPerServing: 40,
+          fatPerServing: 12,
         ),
       ],
       exercises: const [
@@ -112,5 +131,7 @@ void main() {
     expect(weeklyWorkout.muscleGroups, ['Cardio', 'Chest']);
     expect(friday.hasWorkout, isFalse);
     expect(wednesday.cardioCaloriesBurned, 280);
+    expect(monday.totalCarbsGrams, 40);
+    expect(monday.totalFatGrams, 12);
   });
 }

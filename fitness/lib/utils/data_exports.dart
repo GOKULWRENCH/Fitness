@@ -5,7 +5,7 @@ import '../models/fitness_entry.dart';
 String buildCsvExport(List<FitnessEntry> entries) {
   final buffer = StringBuffer()
     ..writeln(
-      'date,weight_kg,calories,protein_g,calorie_goal,protein_goal_g,calories_remaining,protein_remaining,meals,workout_duration_min,cardio_calories_burned,total_exercises,notes,waist_cm,neck_cm,height_cm,body_fat_percent,total_sets,workout_volume_kg,muscle_groups,exercises',
+      'date,weight_kg,calories,protein_g,carbs_g,fat_g,calorie_goal,protein_goal_g,calories_remaining,protein_remaining,meals,workout_name,workout_duration_min,cardio_calories_burned,total_exercises,notes,waist_cm,neck_cm,height_cm,body_fat_percent,total_sets,workout_volume_kg,muscle_groups,exercises',
     );
 
   for (final entry in entries) {
@@ -24,6 +24,8 @@ String buildCsvExport(List<FitnessEntry> entries) {
         _stringifyNumber(entry.weightKg),
         entry.totalCalories?.toString() ?? '',
         _stringifyNumber(entry.totalProteinGrams),
+        _stringifyNumber(entry.totalCarbsGrams),
+        _stringifyNumber(entry.totalFatGrams),
         entry.calorieGoal?.toString() ?? '',
         _stringifyNumber(entry.proteinGoalGrams),
         caloriesRemaining?.toString() ?? '',
@@ -41,6 +43,7 @@ String buildCsvExport(List<FitnessEntry> entries) {
               )
               .join(' | '),
         ),
+        _escapeCsv(entry.workoutName),
         entry.totalWorkoutDurationMinutes.toString(),
         entry.cardioCaloriesBurned.toString(),
         entry.totalExercises.toString(),
@@ -64,7 +67,7 @@ String buildCsvExport(List<FitnessEntry> entries) {
 
 String buildJsonBackup(List<FitnessEntry> entries) {
   final payload = <String, dynamic>{
-    'version': 3,
+    'version': 4,
     'exportedAt': DateTime.now().toIso8601String(),
     'entries': entries.map((entry) => entry.toJson()).toList(),
   };

@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import 'data/fitness_masters.dart';
 import 'models/fitness_entry.dart';
+import 'screens/master_log_home_page.dart';
 import 'services/fitness_repository.dart';
 import 'services/web_file_service.dart';
 import 'utils/data_exports.dart';
@@ -160,10 +161,13 @@ class _FitnessAppShellState extends State<FitnessAppShell> {
     switch (action) {
       case HeaderAction.exportCsv:
         await _exportCsv();
+        return;
       case HeaderAction.backupJson:
         await _backupJson();
+        return;
       case HeaderAction.restoreJson:
         await _restoreJson();
+        return;
     }
   }
 
@@ -328,9 +332,11 @@ class _FitnessAppShellState extends State<FitnessAppShell> {
         final filteredEntries = _filterEntries(entries, reportRange);
 
         final pages = <Widget>[
-          HomePage(
+          MasterLogHomePage(
             repository: widget.repository,
-            onHeaderActionSelected: _handleHeaderAction,
+            onExportCsv: _exportCsv,
+            onBackupJson: _backupJson,
+            onRestoreJson: _restoreJson,
             onOpenDashboard: () {
               setState(() => _selectedTab = AppTab.dashboard);
             },
