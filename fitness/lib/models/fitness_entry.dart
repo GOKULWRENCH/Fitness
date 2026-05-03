@@ -241,8 +241,8 @@ class MealEntry {
     final master = mealItemByName(parsedFoods);
     final parsedName = (json['name'] as String?)?.trim() ?? fallbackName;
     final parsedCategory = (json['category'] as String?)?.trim() ?? parsedName;
-    final parsedQuantity = _toDouble(json['quantity']) ?? 1;
-    final safeQuantity = parsedQuantity <= 0 ? 1 : parsedQuantity;
+    final double parsedQuantity = _toDouble(json['quantity']) ?? 1.0;
+    final double safeQuantity = parsedQuantity <= 0 ? 1.0 : parsedQuantity;
     final totalCalories = _toDouble(json['calories']);
     final totalProtein = _toDouble(json['proteinGrams']);
     final totalCarbs = _toDouble(json['carbsGrams']);
